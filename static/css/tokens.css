@@ -1,0 +1,27 @@
+/* "Bio" design tokens — PRD-v1 section 3.3 (UX-2). Light + dark, WCAG AA targets. */
+:root, [data-theme="light"] {
+  --bg: #F6F8F6;
+  --surface: #FFFFFF;
+  --text: #14231B;
+  --muted: #51625A;
+  --primary: #1B7A43;
+  --on-primary: #FFFFFF;
+  --accent: #0E7490;
+  --border: #DAE3DB;
+  --danger: #B3261E;
+  --warning: #B45309;
+  --shadow: 0 1px 3px rgba(20, 35, 27, 0.08);
+}
+[data-theme="dark"] {
+  --bg: #0D1310;
+  --surface: #15201A;
+  --text: #E7F0E9;
+  --muted: #9DB2A6;
+  --primary: #3ECF8E;
+  --on-primary: #08120C;
+  --accent: #2FC4D9;
+  --border: #24352B;
+  --danger: #F2B8B5;
+  --warning: #F0B429;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}

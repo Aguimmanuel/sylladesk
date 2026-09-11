@@ -1,0 +1,10 @@
+# Runtime deps — pinned to resolved versions (2026-09-10)
+Django==5.2.17            # 5.2 LTS, EOL Apr 2028 (PRD decision D-01)
+django-environ==0.14.0    # .env handling
+whitenoise==6.12.0        # static files without a CDN
+gunicorn==26.2.0          # WSGI server (production)
+django-axes==8.3.1        # login rate-limiting (FR-04)
+argon2-cffi==25.1.0       # password hasher (FR-04)
+psycopg[binary]==3.3.5    # PostgreSQL driver (PostgreSQL 18)
+django-tasks==0.12.0      # scheduled jobs (finalizing expired tests — wired in Phase 5)
+# python-magic==*          # added in Phase 2 with materials (needs libmagic1 in the image)

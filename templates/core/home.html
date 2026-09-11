@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="card center-card">
+  {% icon "leaf" 28 %}
+  <h1>Welcome, {{ user.full_name }}</h1>
+  <p class="muted">Signed in as <strong>{{ role }}</strong>.</p>
+  <p class="muted">Course pages, materials, assignments and tests arrive phase by phase
+  (see PROJECT-STRUCTURE.md, build order). Phase 1 = the doors work.</p>
+</div>
+{% endblock %}

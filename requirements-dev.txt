@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest==8.*        # the team standardized on Django's runner for now; pytest kept for later
+pytest-django==4.*
+ruff==0.*

@@ -1,0 +1,47 @@
+{% load static %}{% load lms_extras %}<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ BRAND_NAME }}{% endblock %} · {{ BRAND_NAME }}</title>
+  <script>
+    /* no-flash theme: apply saved/system choice before first paint (UX-2) */
+    (function () {
+      var saved = localStorage.getItem("theme");
+      var dark = saved ? saved === "dark"
+                       : window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    })();
+  </script>
+  <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="/">{% icon "leaf" %}<span>{{ BRAND_NAME }}</span></a>
+  <nav class="site-nav">
+    {% if user.is_authenticated %}
+      <span class="who">{{ user.full_name }}</span>
+      <form method="post" action="{% url 'accounts:logout' %}" class="inline-form">{% csrf_token %}
+        <button type="submit" class="btn btn-ghost">Log out</button>
+      </form>
+    {% endif %}
+    <button id="theme-toggle" class="btn btn-ghost" type="button" aria-label="Toggle dark mode">
+      <span class="theme-icon-light">{% icon "moon" %}</span>
+      <span class="theme-icon-dark">{% icon "sun" %}</span>
+    </button>
+  </nav>
+</header>
+<main class="container">
+  {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}<li class="msg msg-{{ message.tags }}">{{ message }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="site-footer">Plant Science &amp; Biotechnology · built for the department</footer>
+<script src="{% static 'js/theme.js' %}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

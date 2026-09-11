@@ -1,0 +1,5 @@
+# R1 (VPS) TLS termination. F1 (Render) terminates TLS at the platform instead.
+{$DOMAIN} {
+  reverse_proxy app:8000
+  encode zstd gzip
+}
