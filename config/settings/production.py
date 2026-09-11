@@ -1,5 +1,6 @@
 """Production: secrets required, HTTPS enforced, manifest static files (F1 Render or R1 VPS)."""
 import sys
+import warnings
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -24,10 +25,15 @@ STORAGES = {
     },
 }
 
-# Refuse to boot a production box without backups configured (FR-25, DoD #8)
+# Backups (FR-25): B2/restic wiring is its own step right after first deploy.
+# Until then, warn loudly at boot instead of refusing — Neon's free tier keeps
+# ~7 days of point-in-time history as the interim safety net. The permanent
+# offsite backup (scripts/backup.sh) must land before real student data loads.
 if "collectstatic" not in sys.argv and "makemigrations" not in sys.argv:
     if not env("BACKUP_TARGET", default=""):
-        raise ImproperlyConfigured(
-            "BACKUP_TARGET must be set in production (restic/B2 target) — "
-            "a platform without backups must not boot."
+        warnings.warn(
+            "BACKUP_TARGET is not set — running without offsite backups. "
+            "Wire scripts/backup.sh to B2/R2 before loading real student data (DoD #8).",
+            RuntimeWarning,
+            stacklevel=1,
         )
