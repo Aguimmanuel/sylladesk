@@ -1,0 +1,35 @@
+name: nightly-backup
+
+on:
+  schedule:
+    - cron: "30 1 * * *"   # 01:30 UTC = 02:30 WAT, nightly
+  workflow_dispatch: {}    # manual "Run workflow" button — for testing today
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install restic
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq restic
+
+      - name: Dump database and snapshot to B2
+        env:
+          DATABASE_URL: ${{ secrets.NEON_BACKUP_URL }}
+          B2_ACCOUNT_ID: ${{ secrets.B2_ACCOUNT_ID }}
+          B2_ACCOUNT_KEY: ${{ secrets.B2_ACCOUNT_KEY }}
+          RESTIC_REPOSITORY: ${{ secrets.RESTIC_REPOSITORY }}
+          RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
+        run: |
+          chmod +x scripts/backup.sh
+          ./scripts/backup.sh
+
+      - name: List latest snapshots
+        env:
+          B2_ACCOUNT_ID: ${{ secrets.B2_ACCOUNT_ID }}
+          B2_ACCOUNT_KEY: ${{ secrets.B2_ACCOUNT_KEY }}
+          RESTIC_REPOSITORY: ${{ secrets.RESTIC_REPOSITORY }}
+          RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
+        run: restic snapshots --latest 5
