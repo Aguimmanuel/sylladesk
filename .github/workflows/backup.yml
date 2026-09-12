@@ -3,17 +3,25 @@ name: nightly-backup
 on:
   schedule:
     - cron: "30 1 * * *"   # 01:30 UTC = 02:30 WAT, nightly
-  workflow_dispatch: {}    # manual "Run workflow" button — for testing today
+  workflow_dispatch: {}    # manual "Run workflow" button
 
 jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Install restic
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq restic
+      - name: Install restic + current PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq restic curl ca-certificates gnupg
+          # newest pg_dump can dump any older server (Neon may run 16/17/18)
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          echo "deb http://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18
+          sudo ln -sf /usr/lib/postgresql/18/bin/pg_dump /usr/bin/pg_dump
 
       - name: Dump database and snapshot to B2
         env:
@@ -26,10 +34,11 @@ jobs:
           chmod +x scripts/backup.sh
           ./scripts/backup.sh
 
-      - name: List latest snapshots
+      - name: List latest snapshots (informational only)
         env:
           B2_ACCOUNT_ID: ${{ secrets.B2_ACCOUNT_ID }}
           B2_ACCOUNT_KEY: ${{ secrets.B2_ACCOUNT_KEY }}
           RESTIC_REPOSITORY: ${{ secrets.RESTIC_REPOSITORY }}
           RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
-        run: restic snapshots --latest 5
+        run: |
+          restic snapshots --latest 5 || echo "⚠️ listing failed — but the backup itself already succeeded above"
