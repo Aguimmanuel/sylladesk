@@ -51,3 +51,13 @@ input:focus-visible, button:focus-visible, a:focus-visible {
 [data-theme="dark"] .theme-icon-light { display: none; }
 .icon { vertical-align: -0.18em; }
 @media (max-width: 480px) { .container { margin: .8rem auto; } .center-card { margin: 1.2rem auto; } }
+
+/* password show/hide toggle (UX-6) */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap input { width: 100%; padding-right: 4.6rem; }
+.pw-toggle {
+  position: absolute; right: .45rem; top: 50%; transform: translateY(-50%);
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: .85rem; padding: .3rem .45rem; min-height: 32px;
+}
+.pw-toggle:hover { color: var(--text); }
