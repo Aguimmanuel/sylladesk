@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Roster — {{ course.code }}{% endblock %}
+{% block content %}
+<div class="card center-card">
+  <h1>Roster — {{ course.code }}</h1>
+  <p class="muted">Upload the CSV of <strong>authenticated registration numbers</strong>.
+  Students can sign up only if their number is on this list.
+  Re-uploading later handles add/drop: missing numbers are deactivated (never deleted).</p>
+  <p class="muted small">Columns: <code>registration_number</code>, <code>full_name</code> (optional but recommended). Example: <code>MOUAU/PSB/26/0123,Ada Obi</code> — type reg numbers exactly as students will, slashes included.</p>
+  <form method="post" enctype="multipart/form-data" class="stack">
+    {% csrf_token %}
+    {{ form.roster_file.label_tag }} {{ form.roster_file }}
+    <button type="submit" class="btn btn-primary">Upload roster</button>
+  </form>
+  <p class="muted small"><a href="{% url 'courses:detail' course.id %}">← Back to course</a></p>
+</div>
+{% endblock %}

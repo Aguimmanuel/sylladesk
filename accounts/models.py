@@ -19,7 +19,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=64, unique=True)
     email = models.EmailField(unique=True, null=True, blank=True)
     reg_no = models.CharField(  # students only; claimed from a roster at signup
-        max_length=32, unique=True, null=True, blank=True, db_index=True
+        max_length=50, unique=True, null=True, blank=True, db_index=True
     )
     full_name = models.CharField(max_length=120)
     global_role = models.CharField(
@@ -53,3 +53,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def is_student_role(self):
         return self.global_role == self.GlobalRole.STUDENT
+
+class SignupAttempt(models.Model):
+    """Tiny DB-backed throttle for signup (FR-33: >=20/min per IP rejected)."""
+    ip = models.GenericIPAddressField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)

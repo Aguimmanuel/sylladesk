@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}{{ course.code }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ course.code }} — {{ course.title }}</h1>
+    <p class="muted small">{{ course.session }} · {{ course.get_semester_display }}
+      · you are {{ role }}</p>
+  </div>
+  {% if is_staff %}
+    <a href="{% url 'courses:roster_upload' course.id %}" class="btn">Roster</a>
+  {% endif %}
+</div>
+
+{% if is_staff %}
+<div class="card">
+  <h2>Upload material</h2>
+  <form method="post" enctype="multipart/form-data" class="stack">
+    {% csrf_token %}
+    <div class="row2">
+      <div>{{ mform.title.label_tag }} {{ mform.title }}</div>
+      <div>{{ mform.week_no.label_tag }} {{ mform.week_no }}</div>
+    </div>
+    <div>{{ mform.material_file.label_tag }} {{ mform.material_file }}
+      <p class="muted small">{{ mform.material_file.help_text }}</p></div>
+    <button type="submit" class="btn btn-primary">Upload</button>
+  </form>
+</div>
+{% endif %}
+
+<h2>Materials</h2>
+{% if materials %}
+  <div class="card">
+  <table class="table">
+    <thead><tr><th>Week</th><th>Title</th><th>Size</th><th>Downloads</th><th></th></tr></thead>
+    <tbody>
+    {% for m in materials %}
+      <tr>
+        <td>W{{ m.week_no }}</td>
+        <td>{{ m.title }}</td>
+        <td><span class="pill">{{ m.file.size_bytes|size_label }}</span></td>
+        <td>{{ m.download_count }}</td>
+        <td class="row-actions">
+          <a class="btn btn-primary" href="{% url 'materials:download' course.id m.id %}">Download</a>
+          {% if is_staff %}
+          <form method="post" action="{% url 'materials:delete' course.id m.id %}" class="inline-form">{% csrf_token %}
+            <button type="submit" class="btn btn-ghost">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{% else %}
+  <p class="muted">No materials yet.</p>
+{% endif %}
+
+{% if roster %}
+<h2>Authenticated roster</h2>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Reg no</th><th>Name on roster</th><th>Claimed</th><th>Active</th></tr></thead>
+    <tbody>
+    {% for r in roster %}
+      <tr>
+        <td>{{ r.reg_no }}</td>
+        <td>{{ r.full_name|default:"—" }}</td>
+        <td>
+          {% if r.claimed_by %}✓ {{ r.claimed_by.full_name }} <span class="muted small">({{ r.claimed_at|wat }})</span>
+          {% else %}<span class="muted">not yet</span>{% endif %}
+        </td>
+        <td>{{ r.is_active|yesno:"yes,no" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

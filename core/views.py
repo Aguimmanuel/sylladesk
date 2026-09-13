@@ -22,8 +22,8 @@ def healthz(request):
 
 @login_required
 def home(request):
-    """Route by global role. Real per-role homes arrive with their phases."""
+    """Admins land in Django admin; lecturers/students land in their courses."""
     user = request.user
     if user.global_role == User.GlobalRole.ADMIN and user.is_staff:
         return redirect("admin:index")
-    return render(request, "core/home.html", {"role": user.global_role})
+    return redirect("courses:list")

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}New course{% endblock %}
+{% block content %}
+<div class="card center-card">
+  <h1>New course</h1>
+  {% if form.non_field_errors %}<p class="msg msg-error">{{ form.non_field_errors.0 }}</p>{% endif %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {{ form.code.label_tag }} {{ form.code }} {{ form.code.errors }}
+    {{ form.title.label_tag }} {{ form.title }} {{ form.title.errors }}
+    {{ form.session.label_tag }} {{ form.session }} {{ form.session.errors }}
+    {{ form.semester.label_tag }} {{ form.semester }} {{ form.semester.errors }}
+    <button type="submit" class="btn btn-primary">Create course</button>
+  </form>
+</div>
+{% endblock %}

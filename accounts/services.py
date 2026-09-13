@@ -3,11 +3,14 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.utils import timezone
 
 from core.auditing import audit
+from .models import SignupAttempt
 
 User = get_user_model()
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -80,3 +83,15 @@ def import_staff_csv(fileobj, *, actor=None) -> ImportReport:
         detail={"created": report.created, "skipped": len(report.skipped), "total": report.total_rows},
     )
     return report
+
+def signup_throttle_check_and_hit(
+    ip: str, limit: int = 20, window_seconds: int = 60
+) -> bool:
+    """True = allowed (attempt recorded); False = throttled."""
+    now = timezone.now()
+    SignupAttempt.objects.filter(created_at__lt=now - timedelta(days=1)).delete()
+    recent = SignupAttempt.objects.filter(
+        ip=ip, created_at__gte=now - timedelta(seconds=window_seconds)
+    ).count()
+    SignupAttempt.objects.create(ip=ip)
+    return recent < limit

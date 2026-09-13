@@ -1,0 +1,13 @@
+from django.urls import path
+
+from . import views
+
+app_name = "courses"
+
+urlpatterns = [
+    path("", views.list_courses, name="list"),
+    path("new/", views.create_course, name="create"),
+    path("<int:course_id>/", views.detail, name="detail"),
+    path("<int:course_id>/archive/", views.archive, name="archive"),
+    path("<int:course_id>/roster/upload/", views.roster_upload, name="roster_upload"),
+]

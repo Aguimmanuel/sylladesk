@@ -41,3 +41,38 @@ class TemplateFiltersTests(TestCase):
         from django.utils import timezone
         dt = timezone.make_aware(datetime.datetime(2026, 9, 10, 13, 5))
         self.assertTrue(wat(dt).endswith("WAT"))
+
+
+class EnsureOwnerTests(TestCase):
+    def test_creates_owner_from_env_and_is_idempotent(self):
+        import os
+        from unittest.mock import patch
+
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+
+        User = get_user_model()
+        env = {
+            "OWNER_USERNAME": "owner@sylladesk.app",
+            "OWNER_EMAIL": "owner@sylladesk.app",
+            "OWNER_PASSWORD": "very-strong-owner-pw-9",
+        }
+        with patch.dict(os.environ, env):
+            call_command("ensure_owner", verbosity=0)
+            self.assertTrue(
+                User.objects.filter(username="owner@sylladesk.app").exists()
+            )
+            call_command("ensure_owner", verbosity=0)  # second run: unchanged, no error
+        owner = User.objects.get(username="owner@sylladesk.app")
+        self.assertTrue(owner.is_superuser)
+        self.assertEqual(owner.global_role, "admin")
+
+    def test_refuses_without_env(self):
+        import os
+        from unittest.mock import patch
+
+        from django.core.management import call_command
+
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(Exception):
+                call_command("ensure_owner", verbosity=0)

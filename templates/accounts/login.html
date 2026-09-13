@@ -12,5 +12,6 @@
     {{ form.password.label_tag }} {{ form.password }}
     <button type="submit" class="btn btn-primary">Log in</button>
   </form>
+  <p class="muted small">New student? <a href="{% url 'accounts:signup' %}">Sign up with your registration number</a></p>
 </div>
 {% endblock %}

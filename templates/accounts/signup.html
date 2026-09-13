@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Student sign-up{% endblock %}
+{% block content %}
+<div class="card center-card">
+  <h1>Student sign-up</h1>
+  <p class="muted">Only registration numbers your lecturer added to a course roster can sign up.</p>
+  {% if form.non_field_errors %}<p class="msg msg-error">{{ form.non_field_errors.0 }}</p>{% endif %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {{ form.reg_no.label_tag }} {{ form.reg_no }} {{ form.reg_no.errors }}
+    {{ form.full_name.label_tag }} {{ form.full_name }} {{ form.full_name.errors }}
+    {{ form.email.label_tag }} {{ form.email }} {{ form.email.errors }}
+    {{ form.password1.label_tag }} {{ form.password1 }} {{ form.password1.errors }}
+    {{ form.password2.label_tag }} {{ form.password2 }} {{ form.password2.errors }}
+    <button type="submit" class="btn btn-primary">Create my account</button>
+  </form>
+  <p class="muted small">Already registered? <a href="{% url 'accounts:login' %}">Log in</a></p>
+</div>
+{% endblock %}

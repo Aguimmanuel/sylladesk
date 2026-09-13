@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     # project apps (PROJECT-STRUCTURE.md)
     "core",
     "accounts",
+    "courses",
+    "materials",
     # "django_tasks" + "django_tasks.backends.database" land in Phase 5 (assessments)
 ]
 
@@ -136,3 +138,12 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
+# SQLite convenience: DATABASE_URL=sqlite:///var/dev.sqlite3 means
+# "<project>/var/dev.sqlite3" — NOT the system /var. Folder auto-created.
+_db = DATABASES["default"]
+if _db["ENGINE"].endswith("sqlite3"):
+    _name = Path(_db["NAME"])
+    if _name.is_absolute() and _name.parts[:2] == ("/", "var"):
+        _name = BASE_DIR / "var" / _name.name
+    _name.parent.mkdir(parents=True, exist_ok=True)
+    _db["NAME"] = str(_name)

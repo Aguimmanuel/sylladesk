@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ BRAND_NAME }}{% endblock %} · {{ BRAND_NAME }}</title>
   <script>
-    /* no-flash theme: apply saved/system choice before first paint (UX-2) */
     (function () {
       var saved = localStorage.getItem("theme");
       var dark = saved ? saved === "dark"
@@ -21,6 +20,7 @@
   <a class="brand" href="/">{% icon "leaf" %}<span>{{ BRAND_NAME }}</span></a>
   <nav class="site-nav">
     {% if user.is_authenticated %}
+    <a href="{% url 'courses:list' %}" class="nav-link">My courses</a>
       <span class="who">{{ user.full_name }}</span>
       <form method="post" action="{% url 'accounts:logout' %}" class="inline-form">{% csrf_token %}
         <button type="submit" class="btn btn-ghost">Log out</button>

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}My courses{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>My courses</h1>
+  {% if user.is_lecturer_role or user.is_admin_role %}
+    <a href="{% url 'courses:create' %}" class="btn btn-primary">+ New course</a>
+  {% endif %}
+</div>
+{% if courses %}
+  <div class="grid-cards">
+    {% for course in courses %}
+      <a class="card course-card" href="{% url 'courses:detail' course.id %}">
+        <div class="course-code">{% icon "flask" 16 %} {{ course.code }}</div>
+        <div class="course-title">{{ course.title }}</div>
+        <div class="muted small">{{ course.session }} · {{ course.get_semester_display }}</div>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card center-card">
+    <h2>No courses yet</h2>
+    {% if user.is_lecturer_role or user.is_admin_role %}
+      <p class="muted">Create your first course, then upload its roster.</p>
+      <a href="{% url 'courses:create' %}" class="btn btn-primary">+ New course</a>
+    {% else %}
+      <p class="muted">You'll see courses here once your lecturer uploads the roster
+      and you sign up with your registration number.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -8,4 +8,6 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")),
     path("healthz", core_views.healthz, name="healthz"),
     path("", core_views.home, name="home"),
+    path("courses/", include("courses.urls")),
+    path("courses/<int:course_id>/", include("materials.urls")),
 ]

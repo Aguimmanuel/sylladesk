@@ -38,12 +38,12 @@ class LoginFlowTests(TestCase):
 
 
 class HomeRoutingTests(TestCase):
-    def test_student_gets_placeholder_home(self):
+    def test_student_home_redirects_to_courses(self):
         make_user(username="student1", global_role="student")
         self.client.post(reverse("accounts:login"),
                          {"username": "student1", "password": "sensible-password-1"})
         r = self.client.get(reverse("home"))
-        self.assertContains(r, "student")
+        self.assertRedirects(r, reverse("courses:list"), fetch_redirect_response=False)
 
     def test_admin_redirects_to_admin_site(self):
         u = make_user(username="owner@psb.lms", global_role="admin")
