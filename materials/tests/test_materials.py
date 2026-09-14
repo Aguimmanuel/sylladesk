@@ -86,3 +86,13 @@ class MaterialDownloadTests(TestCase):
         self.client.force_login(self.student)
         r = self.client.get(reverse("materials:download", args=[self.course.id, self.material.id]))
         self.assertEqual(r.status_code, 404)
+
+    def test_upload_form_targets_upload_endpoint(self):
+        """Regression 2026-09-14: this form once had NO action attribute, so every
+        browser POSTed it to the course page instead of the upload view - silent,
+        invisible to view-level tests, exactly what the owner hit live. Paint must
+        be tested, not just plumbing."""
+        self.client.force_login(self.course.lecturer)  # self-contained: works in either test class
+        r = self.client.get(reverse("courses:detail", args=[self.course.id]))
+        self.assertContains(
+            r, 'action="' + reverse("materials:upload", args=[self.course.id]) + '"')

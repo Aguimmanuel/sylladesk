@@ -11,15 +11,10 @@ class CourseCreateTests(TestCase):
     def test_lecturer_creates_course(self):
         lecturer = make_lecturer()
         self.client.force_login(lecturer)
-        r = self.client.post(
-            reverse("courses:create"),
-            {
-                "code": "PSB 413",
-                "title": "Cytogenetics Of Plants",
-                "session": "2025/2026",
-                "semester": "first",
-            },
-        )
+        r = self.client.post(reverse("courses:create"), {
+            "code": "PSB 413", "title": "Physiology",
+            "session": "2025/2026", "semester": "first",
+        })
         self.assertTrue(Course.objects.filter(code="PSB 413").exists())
 
     def test_duplicate_code_session_blocked(self):
@@ -63,3 +58,13 @@ class CourseVisibilityTests(TestCase):
         self.client.force_login(a)
         r = self.client.get(reverse("courses:detail", args=[c.id]))
         self.assertEqual(r.status_code, 200)
+
+    def test_duplicate_code_different_case_blocked(self):
+        """Owner live finding 2026-09-14: 'psb 413' must not duplicate 'PSB 413'."""
+        make_course()  # PSB 413 / 2025/2026
+        self.client.force_login(make_lecturer())
+        r = self.client.post(reverse("courses:create"), {
+            "code": "psb 413", "title": "Copycat",
+            "session": "2025/2026", "semester": "first"})
+        self.assertContains(r, "already exists")
+        self.assertEqual(Course.objects.filter(code="PSB 413").count(), 1)

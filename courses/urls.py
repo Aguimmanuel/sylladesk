@@ -10,4 +10,6 @@ urlpatterns = [
     path("<int:course_id>/", views.detail, name="detail"),
     path("<int:course_id>/archive/", views.archive, name="archive"),
     path("<int:course_id>/roster/upload/", views.roster_upload, name="roster_upload"),
+    path("<int:course_id>/students/<int:user_id>/<str:action>/",
+         views.enrollment_toggle, name="enrollment_toggle"),
 ]

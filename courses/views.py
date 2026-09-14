@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -9,8 +10,8 @@ from core.auditing import audit
 
 from .access import is_staff_of, user_role_in_course
 from .forms import CourseForm, RosterUploadForm
-from .models import Course, RosterEntry
-from .services import import_roster
+from .models import Course, Enrollment, RosterEntry
+from .services import claim_roster_entries, import_roster
 
 User = get_user_model()
 
@@ -18,6 +19,16 @@ User = get_user_model()
 @login_required
 def list_courses(request):
     user = request.user
+    # FR-33 late claim: a roster uploaded AFTER the student signed up must still
+    # reach them (carry-overs, borrowed courses, second courses). Claiming is
+    # idempotent and race-safe, so it is safe to run on every list visit.
+    if user.global_role == User.GlobalRole.STUDENT and user.reg_no:
+        with transaction.atomic():
+            joined = claim_roster_entries(user)
+        if joined:
+            audit(actor=user, action="roster.claim_late", obj=user,
+                  detail={"courses": [c.code for c in joined]})
+            messages.success(request, f"You have been added to {len(joined)} new course(s).")
     if user.is_lecturer_role or (user.is_admin_role and not user.is_staff):
         courses = Course.objects.filter(is_active=True, lecturer=user)
     else:
@@ -67,10 +78,51 @@ def detail(request, course_id):
     from materials.models import Material
     materials = Material.objects.filter(course=course, is_deleted=False).order_by("week_no", "title")
     roster = RosterEntry.objects.filter(course=course).select_related("claimed_by") if staff else None
+    students = removed_students = None
+    if staff:
+        students = (Enrollment.objects.filter(course=course, role_in_course="student", is_active=True)
+                    .select_related("user").order_by("user__full_name"))
+        removed_students = (Enrollment.objects.filter(course=course, role_in_course="student", is_active=False)
+                            .select_related("user").order_by("user__full_name"))
     return render(request, "courses/detail.html", {
         "course": course, "role": role, "materials": materials, "roster": roster,
         "is_staff": staff, "mform": MaterialForm() if staff else None,
+        "students": students, "removed_students": removed_students,
     })
+
+
+@login_required
+@require_POST
+def enrollment_toggle(request, course_id, user_id, action):
+    """Lecturer removes/restores a student's course participation (V1 decision
+    2026-09-14). Soft toggle: the enrollment row survives for audit + restore."""
+    if action not in ("remove", "restore"):
+        raise Http404()
+    course = _course_or_404(course_id)
+    if not is_staff_of(request.user, course):
+        messages.error(request, "Only course staff can manage students.")
+        return redirect("courses:detail", course_id=course.id)
+    target = get_object_or_404(User, pk=user_id)
+    try:
+        enr = Enrollment.objects.get(course=course, user=target)
+    except Enrollment.DoesNotExist:
+        raise Http404()
+    if enr.role_in_course != Enrollment.Role.STUDENT:
+        messages.error(request, "Only student enrollments can be changed here.")
+        return redirect("courses:detail", course_id=course.id)
+    if action == "remove" and enr.is_active:
+        enr.is_active = False
+        enr.save(update_fields=["is_active"])
+        audit(actor=request.user, action="enrollment.remove", obj=enr,
+              detail={"student": target.username})
+        messages.success(request, f"{target.full_name} removed from {course.code}. Restore here anytime.")
+    elif action == "restore" and not enr.is_active:
+        enr.is_active = True
+        enr.save(update_fields=["is_active"])
+        audit(actor=request.user, action="enrollment.restore", obj=enr,
+              detail={"student": target.username})
+        messages.success(request, f"{target.full_name} restored to {course.code}.")
+    return redirect("courses:detail", course_id=course.id)
 
 
 @login_required

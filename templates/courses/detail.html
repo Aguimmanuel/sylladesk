@@ -2,6 +2,7 @@
 {% load lms_extras %}
 {% block title %}{{ course.code }}{% endblock %}
 {% block content %}
+<p><a href="{% url 'courses:list' %}" class="muted small">&#8592; All courses</a></p>
 <div class="page-head">
   <div>
     <h1>{{ course.code }} — {{ course.title }}</h1>
@@ -16,7 +17,8 @@
 {% if is_staff %}
 <div class="card">
   <h2>Upload material</h2>
-  <form method="post" enctype="multipart/form-data" class="stack">
+  <form method="post" enctype="multipart/form-data" class="stack"
+        action="{% url 'materials:upload' course.id %}">
     {% csrf_token %}
     <div class="row2">
       <div>{{ mform.title.label_tag }} {{ mform.title }}</div>
@@ -56,6 +58,50 @@
   </div>
 {% else %}
   <p class="muted">No materials yet.</p>
+{% endif %}
+
+{% if is_staff %}
+<h2>Students</h2>
+<div class="card">
+  {% if students %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Reg no</th><th></th></tr></thead>
+    <tbody>
+    {% for e in students %}
+      <tr>
+        <td>{{ e.user.full_name }}</td>
+        <td class="muted">{{ e.user.reg_no }}</td>
+        <td class="row-actions">
+          <form method="post" action="{% url 'courses:enrollment_toggle' course.id e.user.id 'remove' %}" class="inline-form">{% csrf_token %}
+            <button type="submit" class="btn btn-ghost">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No students have claimed their roster spots yet.</p>
+  {% endif %}
+  {% if removed_students %}
+  <p class="muted small" style="margin-top:.8rem">Removed — restore anytime:</p>
+  <table class="table">
+    <tbody>
+    {% for e in removed_students %}
+      <tr>
+        <td>{{ e.user.full_name }}</td>
+        <td class="muted">{{ e.user.reg_no }}</td>
+        <td class="row-actions">
+          <form method="post" action="{% url 'courses:enrollment_toggle' course.id e.user.id 'restore' %}" class="inline-form">{% csrf_token %}
+            <button type="submit" class="btn">Restore</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
 {% endif %}
 
 {% if roster %}

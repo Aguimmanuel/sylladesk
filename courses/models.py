@@ -27,6 +27,12 @@ class Course(models.Model):
         unique_together = [("code", "session")]
         ordering = ["code"]
 
+    def clean(self):
+        """Normalize code/session so 'psb 413' can never become a duplicate
+        of 'PSB 413' (unique_together is case-sensitive in Postgres)."""
+        self.code = " ".join((self.code or "").split()).upper()
+        self.session = " ".join((self.session or "").split())
+
     def __str__(self):
         return f"{self.code} — {self.title} ({self.session})"
 
