@@ -1,17 +1,22 @@
+from django.db import transaction
+from django.shortcuts import redirect
+
+from courses.models import RosterEntry
+from courses.services import claim_roster_entries
+
+from .services import signup_throttle_check_and_hit
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login, update_session_auth_hash
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
-from django.db import transaction
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from core.auditing import audit
-from courses.models import RosterEntry
-from courses.services import claim_roster_entries
 
 from .forms import LoginForm, PasswordSetForm
-from .services import signup_throttle_check_and_hit
 
 User = get_user_model()
 
@@ -51,9 +56,7 @@ class PasswordSetView(FormView):
         user.set_password(form.cleaned_data["new_password1"])
         user.must_reset_password = False
         user.save(update_fields=["password", "must_reset_password"])
-        update_session_auth_hash(
-            self.request, user
-        )  # keep the session, don't log them out
+        update_session_auth_hash(self.request, user)  # keep the session, don't log them out
         audit(actor=user, action="auth.password_set", obj=user, detail={"forced": True})
         messages.success(self.request, "Password set — welcome aboard.")
         return super().form_valid(form)
@@ -65,11 +68,7 @@ class PasswordChangeView(PasswordChangeView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        audit(
-            actor=self.request.user,
-            action="auth.password_change",
-            obj=self.request.user,
-        )
+        audit(actor=self.request.user, action="auth.password_change", obj=self.request.user)
         messages.success(self.request, "Password changed.")
         return response
 
@@ -93,7 +92,6 @@ class StudentSignupView(FormView):
 
     def get_form_class(self):
         from .signup_forms import StudentSignupForm
-
         return StudentSignupForm
 
     def dispatch(self, request, *args, **kwargs):
@@ -113,28 +111,21 @@ class StudentSignupView(FormView):
         name = form.cleaned_data["full_name"]
 
         entries = list(
-            RosterEntry.objects.select_related("course").filter(
-                reg_no=reg, is_active=True
-            )
+            RosterEntry.objects.select_related("course")
+            .filter(reg_no=reg, is_active=True)
         )
         if not entries:
-            form.add_error(
-                "reg_no",
-                "This registration number is not on any course roster. Contact your lecturer.",
-            )
+            form.add_error("reg_no",
+                "This registration number is not on any course roster. Contact your lecturer.")
             return self.form_invalid(form)
         if any(e.claimed_by_id for e in entries):
-            form.add_error(
-                "reg_no",
-                "This registration number has already been registered. Try logging in instead.",
-            )
+            form.add_error("reg_no",
+                "This registration number has already been registered. Try logging in instead.")
             return self.form_invalid(form)
         named = [e for e in entries if e.full_name]
         if named and not any(_names_match(name, e) for e in named):
-            form.add_error(
-                "full_name",
-                "Name does not match the roster. Use your name exactly as your lecturer submitted it.",
-            )
+            form.add_error("full_name",
+                "Name does not match the roster. Use your name exactly as your lecturer submitted it.")
             return self.form_invalid(form)
         User = get_user_model()
 
@@ -149,15 +140,11 @@ class StudentSignupView(FormView):
                     reg_no=reg, claimed_by__isnull=True, is_active=True
                 )
                 if not unclaimed.exists():
-                    form.add_error(
-                        "reg_no",
-                        "This registration number has already been registered.",
-                    )
+                    form.add_error("reg_no",
+                        "This registration number has already been registered.")
                     return self.form_invalid(form)
                 user = User(
-                    username=reg,
-                    reg_no=reg,
-                    full_name=name,
+                    username=reg, reg_no=reg, full_name=name,
                     email=email,
                     global_role=User.GlobalRole.STUDENT,
                 )
@@ -165,20 +152,56 @@ class StudentSignupView(FormView):
                 user.save()
                 joined = claim_roster_entries(user)
         except Exception:
-            form.add_error(
-                None, "Could not create the account (possibly already registered)."
-            )
+            form.add_error(None, "Could not create the account (possibly already registered).")
             return self.form_invalid(form)
 
-        audit(
-            actor=user,
-            action="student.signup",
-            obj=user,
-            detail={"courses": [c.code for c in joined]},
-        )
+        audit(actor=user, action="student.signup", obj=user,
+              detail={"courses": [c.code for c in joined]})
         login(self.request, user, backend="django.contrib.auth.backends.ModelBackend")
-        messages.success(
-            self.request,
-            f"Welcome, {name}! You're enrolled in {len(joined)} course(s).",
-        )
+        messages.success(self.request,
+            f"Welcome, {name}! You're enrolled in {len(joined)} course(s).")
         return super().form_valid(form)
+
+
+class ThrottledPasswordResetView(auth_views.PasswordResetView):
+    """V2-13: 'Forgot password?' - emails a 1-hour reset link (Gmail SMTP).
+    Same per-IP throttle as signup, tighter budget (10/hour). Generic success
+    page: the response must NOT reveal whether the address has an account."""
+
+    template_name = "registration/password_reset_form.html"
+    email_template_name = "registration/password_reset_email.html"
+    subject_template_name = "registration/password_reset_subject.txt"
+    success_url = reverse_lazy("accounts:password_reset_done")
+
+    def post(self, request, *args, **kwargs):
+        ip = request.META.get("REMOTE_ADDR", "0.0.0.0")
+        if not signup_throttle_check_and_hit(ip, limit=10, window_seconds=3600):
+            messages.error(request, "Too many reset requests. Try again in a bit.")
+            return redirect("accounts:login")
+        return super().post(request, *args, **kwargs)
+
+
+class PasswordResetDone(auth_views.PasswordResetDoneView):
+    template_name = "registration/password_reset_done.html"
+
+
+class ResetConfirm(auth_views.PasswordResetConfirmView):
+    """Sets the new password. ALSO clears the forced-reset flag if it was set:
+    a student with a temp credential who resets by email must not be bounced
+    into setting a password twice."""
+
+    template_name = "registration/password_reset_confirm.html"
+    success_url = reverse_lazy("accounts:password_reset_complete")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        user = form.user
+        if getattr(user, "must_reset_password", False):
+            user.must_reset_password = False
+            user.save(update_fields=["must_reset_password"])
+            audit(actor=user, action="auth.reset_cleared_forced_flag", obj=user)
+        return response
+
+
+class PasswordResetComplete(auth_views.PasswordResetCompleteView):
+    template_name = "registration/password_reset_complete.html"

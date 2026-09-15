@@ -68,3 +68,24 @@ class CourseVisibilityTests(TestCase):
             "session": "2025/2026", "semester": "first"})
         self.assertContains(r, "already exists")
         self.assertEqual(Course.objects.filter(code="PSB 413").count(), 1)
+
+    def test_co_lecturer_sees_course_in_list(self):
+        """Owner question 2026-09-15: two lecturers on one course is normal.
+        The co-lecturer (lecturer-role Enrollment on someone else's course)
+        must see it in My courses with full staff rights."""
+        from courses.models import Enrollment
+        c = make_course()
+        co = make_user(username="colect@psb.lms", global_role="lecturer")
+        Enrollment.objects.create(course=c, user=co, role_in_course=Enrollment.Role.LECTURER)
+        self.client.force_login(co)
+        r = self.client.get(reverse("courses:list"))
+        self.assertContains(r, c.code)
+
+    def test_admin_sees_all_courses_in_list(self):
+        from courses.models import Enrollment
+        c = make_course()
+        owner = make_user(username="platadmin@psb.lms", global_role="admin")
+        owner.is_staff = True; owner.save()
+        self.client.force_login(owner)
+        r = self.client.get(reverse("courses:list"))
+        self.assertContains(r, c.code)

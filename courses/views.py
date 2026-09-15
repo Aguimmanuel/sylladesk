@@ -29,12 +29,22 @@ def list_courses(request):
             audit(actor=user, action="roster.claim_late", obj=user,
                   detail={"courses": [c.code for c in joined]})
             messages.success(request, f"You have been added to {len(joined)} new course(s).")
-    if user.is_lecturer_role or (user.is_admin_role and not user.is_staff):
-        courses = Course.objects.filter(is_active=True, lecturer=user)
+    if user.is_admin_role:
+        # platform staff: every active course (they hold "admin" role in all of them)
+        courses = Course.objects.filter(is_active=True)
+    elif user.is_lecturer_role:
+        # courses they own OR co-lecture via an active lecturer enrollment
+        courses = (
+            Course.objects.filter(is_active=True, lecturer=user)
+            | Course.objects.filter(
+                is_active=True, enrollments__user=user,
+                enrollments__is_active=True,
+                enrollments__role_in_course=Enrollment.Role.LECTURER)
+        ).distinct()
     else:
         courses = Course.objects.filter(
             enrollments__user=user, enrollments__is_active=True, is_active=True
-        )
+        ).distinct()
     return render(request, "courses/list.html", {"courses": courses})
 
 

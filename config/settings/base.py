@@ -116,6 +116,19 @@ AXES_RESET_ON_SUCCESS = True
 AXES_ENABLED = env.bool("AXES_ENABLED", default=True)
 
 # --- files (PRD section 3.2, core.storage is the F1<->R1 seam) ---
+# ── Email (V2-13 forgot-password, shipped as Phase 2 pull) ──────────
+# Local dev: unset -> console backend (reset emails print to the terminal).
+# Production: set ALL of the EMAIL_* values in Render (Gmail App Password).
+# Swapping to Resend later = changing these env values only, zero code.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="SyllaDesk <no-reply@sylladesk.local>")
+PASSWORD_RESET_TIMEOUT = 60 * 60  # reset links die after 1 hour
+
 FILES_BACKEND = env("FILES_BACKEND", default="db")  # "db" (free hosting) | "disk" (VPS)
 FILES_DISK_ROOT = Path(env("FILES_DISK_ROOT", default=str(BASE_DIR / "var" / "files")))
 MATERIAL_MAX_MB = 30   # FR-07
@@ -138,12 +151,3 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
-# SQLite convenience: DATABASE_URL=sqlite:///var/dev.sqlite3 means
-# "<project>/var/dev.sqlite3" — NOT the system /var. Folder auto-created.
-_db = DATABASES["default"]
-if _db["ENGINE"].endswith("sqlite3"):
-    _name = Path(_db["NAME"])
-    if _name.is_absolute() and _name.parts[:2] == ("/", "var"):
-        _name = BASE_DIR / "var" / _name.name
-    _name.parent.mkdir(parents=True, exist_ok=True)
-    _db["NAME"] = str(_name)

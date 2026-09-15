@@ -13,5 +13,6 @@
     <button type="submit" class="btn btn-primary">Log in</button>
   </form>
   <p class="muted small">New student? <a href="{% url 'accounts:signup' %}">Sign up with your registration number</a></p>
+  {% if email_configured %}<p class="muted small"><a href="{% url 'accounts:password_reset' %}">Forgot password?</a></p>{% endif %}
 </div>
 {% endblock %}
