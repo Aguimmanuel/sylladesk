@@ -117,11 +117,14 @@ AXES_ENABLED = env.bool("AXES_ENABLED", default=True)
 
 # --- files (PRD section 3.2, core.storage is the F1<->R1 seam) ---
 # ── Email (V2-13 forgot-password, shipped as Phase 2 pull) ──────────
-# Local dev: unset -> console backend (reset emails print to the terminal).
-# Production: set ALL of the EMAIL_* values in Render (Gmail App Password).
-# Swapping to Resend later = changing these env values only, zero code.
-EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+# Local dev: no EMAIL_HOST -> console backend (reset emails print to the terminal).
+# Production: set the EMAIL_* values (Gmail App Password) and SMTP is picked
+# automatically. Swapping to Resend later = changing env values only, zero code.
 EMAIL_HOST = env("EMAIL_HOST", default="")
+if EMAIL_HOST:
+    EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+else:
+    EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")

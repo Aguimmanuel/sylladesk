@@ -90,3 +90,20 @@ class PasswordResetTests(TestCase):
         r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
         self.assertRedirects(r, reverse("accounts:login"), fetch_redirect_response=False)
         self.assertEqual(len(mail.outbox), 10)
+
+    def test_done_page_honest_when_sending_not_configured(self):
+        """Owner live finding 2026-09-15: reset 'did nothing' - because no EMAIL_*
+        env values existed. The done page must SAY so instead of a fake 'check
+        your email' that never arrives."""
+        make_ada()
+        r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
+        r = self.client.get(reverse("accounts:password_reset_done"))
+        self.assertContains(r, "not set up on this deployment")
+
+    @override_settings(EMAIL_HOST_USER="sender@example.com")
+    def test_done_page_promises_mail_when_configured(self):
+        make_ada()
+        self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
+        r = self.client.get(reverse("accounts:password_reset_done"))
+        self.assertContains(r, "a reset link is on its way")
+        self.assertNotContains(r, "not set up on this deployment")

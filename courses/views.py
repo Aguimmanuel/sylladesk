@@ -31,7 +31,7 @@ def list_courses(request):
             messages.success(request, f"You have been added to {len(joined)} new course(s).")
     if user.is_admin_role:
         # platform staff: every active course (they hold "admin" role in all of them)
-        courses = Course.objects.filter(is_active=True)
+        courses = Course.objects.filter(is_active=True).select_related("lecturer")
     elif user.is_lecturer_role:
         # courses they own OR co-lecture via an active lecturer enrollment
         courses = (
@@ -40,11 +40,11 @@ def list_courses(request):
                 is_active=True, enrollments__user=user,
                 enrollments__is_active=True,
                 enrollments__role_in_course=Enrollment.Role.LECTURER)
-        ).distinct()
+        ).distinct().select_related("lecturer")
     else:
         courses = Course.objects.filter(
             enrollments__user=user, enrollments__is_active=True, is_active=True
-        ).distinct()
+        ).distinct().select_related("lecturer")
     return render(request, "courses/list.html", {"courses": courses})
 
 

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card center-card">
   <h1>Student sign-up</h1>
-  <p class="muted">Only registration numbers your lecturer added to a course roster can sign up.</p>
+  <p class="muted">Your Registration number must be added to at least one course before you can sign up.</p>
   {% if form.non_field_errors %}<p class="msg msg-error">{{ form.non_field_errors.0 }}</p>{% endif %}
   <form method="post" class="stack">
     {% csrf_token %}

@@ -14,6 +14,7 @@
       <a class="card course-card" href="{% url 'courses:detail' course.id %}">
         <div class="course-code">{% icon "flask" 16 %} {{ course.code }}</div>
         <div class="course-title">{{ course.title }}</div>
+        <div class="muted small">Lecturer: {{ course.lecturer.full_name }}</div>
         <div class="muted small">{{ course.session }} · {{ course.get_semester_display }}</div>
       </a>
     {% endfor %}
