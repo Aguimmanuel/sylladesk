@@ -121,10 +121,18 @@ AXES_ENABLED = env.bool("AXES_ENABLED", default=True)
 # Production: set the EMAIL_* values (Gmail App Password) and SMTP is picked
 # automatically. Swapping to Resend later = changing env values only, zero code.
 EMAIL_HOST = env("EMAIL_HOST", default="")
-if EMAIL_HOST:
-    EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+APPS_SCRIPT_MAIL_URL = env("APPS_SCRIPT_MAIL_URL", default="")
+APPS_SCRIPT_MAIL_TOKEN = env("APPS_SCRIPT_MAIL_TOKEN", default="")
+_explicit_backend = env("EMAIL_BACKEND", default=None)
+if _explicit_backend:
+    EMAIL_BACKEND = _explicit_backend  # explicit env always wins
+elif APPS_SCRIPT_MAIL_URL and APPS_SCRIPT_MAIL_TOKEN:
+    EMAIL_BACKEND = "core.mail_backends.AppsScriptMailBackend"  # free HTTPS route
+elif EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"  # works off Render-free
 else:
-    EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # dev: mail to terminal
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)  # seconds; never hang a worker on SMTP
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")

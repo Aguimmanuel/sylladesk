@@ -1,4 +1,7 @@
+import io
+import json
 import re
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -53,7 +56,7 @@ class PasswordResetTests(TestCase):
         r = self.client.get(confirm)
         # stock Django: valid token redirects to the ".../set-password/" form URL
         self.assertEqual(r.status_code, 302)
-        set_pw_url = r.url                       # capture, then GET and POST the same URL
+        set_pw_url = r.url  # capture, then GET and POST the same URL
         r = self.client.get(set_pw_url)
         self.assertContains(r, "Set a new password")
         r = self.client.post(set_pw_url, {"new_password1": "brand-new-password-7",
@@ -65,8 +68,8 @@ class PasswordResetTests(TestCase):
         self.client.logout()
         r = self.client.post(reverse("accounts:login"),
                              {"username": u.username, "password": "brand-new-password-7"})
-        self.assertRedirects(r, reverse("home"), fetch_redirect_response=False)  # home then routes students on
-        self.client.logout()  # the old-password attempt must come from a logged-out visitor
+        self.assertRedirects(r, reverse("home"), fetch_redirect_response=False)  # home routes students on
+        self.client.logout()  # old-password attempt must come from a logged-out visitor
         r = self.client.post(reverse("accounts:login"),
                              {"username": u.username, "password": "old-password-99"})
         self.assertContains(r, "Wrong username or password")
@@ -107,3 +110,100 @@ class PasswordResetTests(TestCase):
         r = self.client.get(reverse("accounts:password_reset_done"))
         self.assertContains(r, "a reset link is on its way")
         self.assertNotContains(r, "not set up on this deployment")
+
+
+class FailingMailBackend:
+    """Stands in for a blocked/broken SMTP path (e.g. Render free tier).
+    Django instantiates backends as klass(fail_silently=False) - hence __init__."""
+
+    def __init__(self, fail_silently=False, **kwargs):
+        self.fail_silently = fail_silently
+
+    def send_messages(self, email_messages):
+        raise OSError("simulated outbound SMTP failure")
+
+
+class MailOutageTests(TestCase):
+    @override_settings(EMAIL_BACKEND="accounts.tests.test_password_reset.FailingMailBackend",
+                       EMAIL_HOST_USER="sender@example.com")
+    def test_outage_degrades_gracefully_no_500(self):
+        """Regression 2026-09-15: an SMTP outage hung a gunicorn worker (60s) and
+        served the student a 500. Stock Django would also LIE ('check your email')
+        because PasswordResetForm.send_mail swallows every exception - hence the
+        loud form: failures reach the view, which tells the student the truth."""
+        make_ada()
+        r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
+        self.assertEqual(r.status_code, 302)  # graceful, not a 500
+        self.assertRedirects(r, reverse("accounts:login"), fetch_redirect_response=False)
+        r = self.client.get(reverse("accounts:login"))
+        self.assertContains(r, "could not send the reset email")
+
+
+class AppsScriptMailTests(TestCase):
+    """The zero-naira route: mail rides HTTPS to the owner's Apps Script Web App."""
+
+    @override_settings(EMAIL_BACKEND="core.mail_backends.AppsScriptMailBackend",
+                       APPS_SCRIPT_MAIL_URL="https://script.example/exec",
+                       APPS_SCRIPT_MAIL_TOKEN="tok")
+    def test_backend_posts_and_confirms(self):
+        make_ada()
+        with mock.patch("core.mail_backends.AppsScriptMailBackend._post") as post:
+            post.return_value = True
+            r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
+            self.assertRedirects(r, reverse("accounts:password_reset_done"))
+            post.assert_called_once()
+            kwargs = post.call_args.kwargs
+            self.assertEqual(kwargs["to"], EMAIL)
+            self.assertIn("SyllaDesk", kwargs["subject"])
+            self.assertIn("/accounts/password/reset/", kwargs["text"])
+
+    @override_settings(EMAIL_BACKEND="core.mail_backends.AppsScriptMailBackend",
+                       APPS_SCRIPT_MAIL_URL="https://script.example/exec",
+                       APPS_SCRIPT_MAIL_TOKEN="tok")
+    def test_backend_failure_is_loud_not_silent(self):
+        make_ada()
+        with mock.patch("core.mail_backends.AppsScriptMailBackend._post") as post:
+            post.side_effect = OSError("script unreachable")
+            r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
+            self.assertRedirects(r, reverse("accounts:login"), fetch_redirect_response=False)
+            r = self.client.get(reverse("accounts:login"))
+            self.assertContains(r, "could not send the reset email")
+
+    @override_settings(APPS_SCRIPT_MAIL_URL="https://script.example/exec",
+                       APPS_SCRIPT_MAIL_TOKEN="sekret")
+    def test_payload_carries_token_and_fields(self):
+        from core import mail_backends
+        captured = {}
+
+        class FakeResp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            captured["url"] = req.full_url
+            captured["data"] = req.data
+            return FakeResp(b'{"ok": true}')
+
+        be = mail_backends.AppsScriptMailBackend()
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            be._post(to="a@b.c", subject="Hi", text="Body")
+        sent = json.loads(captured["data"])
+        self.assertEqual(captured["url"], "https://script.example/exec")
+        self.assertEqual(sent["token"], "sekret")
+        self.assertEqual(sent["to"], "a@b.c")
+
+    @override_settings(EMAIL_BACKEND="core.mail_backends.AppsScriptMailBackend",
+                       APPS_SCRIPT_MAIL_URL="https://script.example/exec",
+                       APPS_SCRIPT_MAIL_TOKEN="tok")
+    def test_script_error_payload_raises(self):
+        """An HTML 'please sign in' page or an error JSON must NOT count as sent."""
+        from core import mail_backends
+        be = mail_backends.AppsScriptMailBackend()
+        with mock.patch("urllib.request.urlopen") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = (
+                b"<html>Sign in - Google Accounts</html>")
+            with self.assertRaises(OSError):
+                be._post(to="a@b.c", subject="Hi", text="Body")

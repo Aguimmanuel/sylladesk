@@ -1,12 +1,17 @@
+import logging
+import smtplib
+
 from django.db import transaction
 from django.shortcuts import redirect
 
 from courses.models import RosterEntry
 from courses.services import claim_roster_entries
 
+from .forms import LoudPasswordResetForm
 from .services import signup_throttle_check_and_hit
 
 from django.contrib import messages
+logger = logging.getLogger(__name__)
 from django.contrib.auth import get_user_model, login, update_session_auth_hash
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
@@ -168,6 +173,7 @@ class ThrottledPasswordResetView(auth_views.PasswordResetView):
     Same per-IP throttle as signup, tighter budget (10/hour). Generic success
     page: the response must NOT reveal whether the address has an account."""
 
+    form_class = LoudPasswordResetForm  # loud: send failures reach form_valid's handler
     template_name = "registration/password_reset_form.html"
     email_template_name = "registration/password_reset_email.html"
     subject_template_name = "registration/password_reset_subject.txt"
@@ -180,8 +186,24 @@ class ThrottledPasswordResetView(auth_views.PasswordResetView):
             return redirect("accounts:login")
         return super().post(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        try:
+            return super().form_valid(form)
+        except (smtplib.SMTPException, OSError):
+            # Render's FREE tier blocks outbound SMTP ports entirely (since
+            # 2025-09); providers also have ordinary outages, and an App
+            # Password can be wrong. None of that may crash a worker or show
+            # the student a 500. Log server-side; tell the student the truth.
+            logger.exception("Password-reset email could not be sent")
+            messages.error(self.request,
+                "We could not send the reset email right now. "
+                "Please contact your lecturer to reset your password.")
+            return redirect("accounts:login")
+
 
 class PasswordResetDone(auth_views.PasswordResetDoneView):
+    """The done page reads `email_configured` from the brand() context processor:
+    when no EMAIL_HOST_USER is configured, it says honestly that no mail went out."""
     template_name = "registration/password_reset_done.html"
 
 

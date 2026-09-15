@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib.auth import password_validation
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm
+from django.core.mail import EmailMultiAlternatives
+from django.template import loader
 
 
 class LoginForm(AuthenticationForm):
@@ -10,7 +12,7 @@ class LoginForm(AuthenticationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["username"].widget.attrs.update(
-            {"autofocus": True, "placeholder": "Reg no (students) or username/email (staff)", "inputmode": "text"}
+            {"autofocus": True, "placeholder": "Registration number (students) or username (staff)", "inputmode": "text"}
         )
         self.fields["password"].widget.attrs.update({"placeholder": "Password"})
 
@@ -36,3 +38,22 @@ class PasswordSetForm(forms.Form):
         if p1 and p2 and p1 != p2:
             self.add_error("new_password2", "The two passwords didn't match.")
         return cleaned
+
+
+class LoudPasswordResetForm(PasswordResetForm):
+    """Django's stock form SWALLOWS all send errors (logs them, shows the
+    student 'check your email' anyway). We want the truth: send failures must
+    reach ThrottledPasswordResetView.form_valid so the student is told.
+    Same body as stock send_mail, minus the bare except."""
+
+    def send_mail(self, subject_template_name, email_template_name, context,
+                  from_email, to_email, html_email_template_name=None):
+        subject = loader.render_to_string(subject_template_name, context)
+        subject = "".join(subject.splitlines())  # subjects must not contain newlines
+        body = loader.render_to_string(email_template_name, context)
+        email_message = EmailMultiAlternatives(subject, body, from_email, [to_email])
+        if html_email_template_name is not None:
+            email_message.attach_alternative(
+                loader.render_to_string(html_email_template_name, context), "text/html")
+        # Deliberately NO try/except here - failures propagate to the view.
+        email_message.send()
