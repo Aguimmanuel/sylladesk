@@ -1,5 +1,4 @@
 from django import forms
-from django.utils import timezone
 
 from .models import Question, Test
 
@@ -7,17 +6,33 @@ from .models import Question, Test
 class TestForm(forms.ModelForm):
     class Meta:
         model = Test
-        fields = ["title", "open_at", "close_at", "n_to_answer", "points_per_question", "allow_review"]
+        fields = [
+            "title", "n_objective", "n_tf", "n_subjective",
+            "seconds_objective", "seconds_tf", "seconds_subjective",
+            "points_per_question", "allow_review",
+        ]
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Week 4 Quiz"}),
-            "open_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
-            "close_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+        }
+        labels = {
+            "n_objective": "Multiple choice to draw",
+            "n_tf": "True / False to draw",
+            "n_subjective": "Short answer to draw",
+            "seconds_objective": "Seconds per multiple choice question",
+            "seconds_tf": "Seconds per true/false question",
+            "seconds_subjective": "Seconds per short answer question",
+            "points_per_question": "Points per question",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for f in ("open_at", "close_at"):
-            self.fields[f].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"]
+        for f in ("n_objective", "n_tf", "n_subjective"):
+            self.fields[f].min_value = 0
+            self.fields[f].max_value = 200
+            self.fields[f].widget.attrs["min"] = 0
+        for f in ("seconds_objective", "seconds_tf", "seconds_subjective"):
+            self.fields[f].min_value = 5
+            self.fields[f].max_value = 7200
 
 
 class QuestionForm(forms.Form):

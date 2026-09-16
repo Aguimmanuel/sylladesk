@@ -1,24 +1,34 @@
-from datetime import timedelta
-
 from django.utils import timezone
 
 from accounts.tests.helpers import make_user
 from courses.models import Enrollment
-from courses.tests.helpers import make_course
+from courses.tests.helpers import make_course, make_lecturer
 
 from ..models import Question, Test
 
+_n = [0]
 
-def make_test(course=None, *, open_in=1, close_in=8, n=2, **kwargs):
-    lecturer = make_user(username="testlect@psb.lms", global_role="lecturer")
-    course = course or make_course(lecturer=lecturer)
+
+def make_test(course=None, *, n_obj=2, n_tf=0, n_short=0, **kwargs):
+    if course is None:
+        # unique lecturer and course code: tests build several tests per run
+        _n[0] += 1
+        lecturer = make_lecturer()
+        course = make_course(lecturer=lecturer, code=f"PSB 41{_n[0]}")
     defaults = dict(
-        title="Week 4 Quiz", open_at=timezone.now() + timedelta(days=open_in),
-        close_at=timezone.now() + timedelta(days=close_in),
-        n_to_answer=n, created_by=course.lecturer,
+        title="Week 4 Quiz", n_objective=n_obj, n_tf=n_tf, n_subjective=n_short,
+        created_by=course.lecturer,
     )
     defaults.update(kwargs)
     return Test.objects.create(course=course, **defaults)
+
+
+def open_test(t):
+    """Flip a draft straight to live, bypassing the pool check."""
+    if not t.started_at:
+        t.started_at = timezone.now()
+        t.save(update_fields=["started_at"])
+    return t
 
 
 def add_mcq(t, *, text="Photosynthesis happens in the?", key="B", options="Mitochondria\nChloroplast\nNucleus"):

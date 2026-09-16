@@ -5,12 +5,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from core.auditing import audit
 from courses.access import is_staff_of, user_role_in_course
 from courses.views import _course_or_404
 
 from .forms import JoinForm, QuestionForm, TestForm
-from .models import Answer, Attempt, Question, Test
+from .models import Attempt, Question, Test
 from . import services
 
 
@@ -20,6 +19,15 @@ def _test_or_404(course_id, test_id):
 
 def _test_by_code(code):
     return get_object_or_404(Test, join_code=code.strip().upper(), is_active=True)
+
+
+def _staff_test(request, course_id, test_id):
+    """Course staff guard shared by the lecturer routes."""
+    course = _course_or_404(course_id)
+    t = _test_or_404(course_id, test_id)
+    if not is_staff_of(request.user, course):
+        return course, t, False
+    return course, t, True
 
 
 @login_required
@@ -33,8 +41,12 @@ def create(request, course_id):
         try:
             t = services.create_test(
                 course, actor=request.user, title=form.cleaned_data["title"],
-                open_at=form.cleaned_data["open_at"], close_at=form.cleaned_data["close_at"],
-                n_to_answer=form.cleaned_data["n_to_answer"],
+                n_objective=form.cleaned_data["n_objective"],
+                n_tf=form.cleaned_data["n_tf"],
+                n_subjective=form.cleaned_data["n_subjective"],
+                seconds_objective=form.cleaned_data["seconds_objective"],
+                seconds_tf=form.cleaned_data["seconds_tf"],
+                seconds_subjective=form.cleaned_data["seconds_subjective"],
                 points_per_question=form.cleaned_data["points_per_question"],
                 allow_review=form.cleaned_data["allow_review"],
             )
@@ -43,7 +55,40 @@ def create(request, course_id):
         else:
             messages.success(request, f"Test created. Join code: {t.join_code}")
             return redirect("assessments:detail", course_id=course.id, test_id=t.id)
-    return render(request, "assessments/create.html", {"course": course, "form": form})
+    return render(request, "assessments/create.html", {
+        "course": course, "form": form, "editing": False,
+        "pool_mcq": 0, "pool_tf": 0, "pool_short": 0,
+    })
+
+
+@login_required
+def edit(request, course_id, test_id):
+    course = _course_or_404(course_id)
+    t = _test_or_404(course_id, test_id)
+    if not is_staff_of(request.user, course):
+        messages.error(request, "Only course staff can edit tests.")
+        return redirect("courses:detail", course_id=course.id)
+    if t.started_at or t.results_released_at:
+        messages.error(request, "Settings are locked once the test has started.")
+        return redirect("assessments:detail", course_id=course.id, test_id=t.id)
+    form = TestForm(request.POST or None, instance=t)
+    if request.method == "POST" and form.is_valid():
+        fields = ("title", "n_objective", "n_tf", "n_subjective", "seconds_objective",
+                  "seconds_tf", "seconds_subjective", "points_per_question", "allow_review")
+        try:
+            services.update_settings(t, actor=request.user,
+                                     **{f: form.cleaned_data[f] for f in fields})
+        except ValueError as e:
+            form.add_error(None, str(e))
+        else:
+            messages.success(request, "Settings saved.")
+            return redirect("assessments:detail", course_id=course.id, test_id=t.id)
+    return render(request, "assessments/create.html", {
+        "course": course, "form": form, "editing": True, "test": t,
+        "pool_mcq": t.questions.filter(kind="mcq").count(),
+        "pool_tf": t.questions.filter(kind="tf").count(),
+        "pool_short": t.questions.filter(kind="short").count(),
+    })
 
 
 @login_required
@@ -52,9 +97,11 @@ def detail(request, course_id, test_id):
     t = _test_or_404(course_id, test_id)
     if not is_staff_of(request.user, course):
         return redirect("assessments:join", code=t.join_code)
+    locked = bool(t.started_at or t.results_released_at)
     context = {
         "course": course, "test": t, "questions": t.questions.all(),
-        "qform": QuestionForm(), "attempts": t.attempts.count(),
+        "qform": QuestionForm(), "locked": locked,
+        "attempts": t.attempts.count(),
         "submitted": t.attempts.filter(submitted_at__isnull=False).count(),
     }
     return render(request, "assessments/detail.html", context)
@@ -62,10 +109,39 @@ def detail(request, course_id, test_id):
 
 @login_required
 @require_POST
+def start(request, course_id, test_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    try:
+        services.start_test(t, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "The test has started. Students can join now.")
+    return redirect("assessments:detail", course_id=course.id, test_id=t.id)
+
+
+@login_required
+@require_POST
+def close(request, course_id, test_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    try:
+        services.close_test(t, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "The test is closed. Students already writing can finish.")
+    return redirect("assessments:detail", course_id=course.id, test_id=t.id)
+
+
+@login_required
+@require_POST
 def add_question(request, course_id, test_id):
-    course = _course_or_404(course_id)
-    t = _test_or_404(course_id, test_id)
-    if not is_staff_of(request.user, course):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
         return redirect("courses:detail", course_id=course.id)
     form = QuestionForm(request.POST)
     if form.is_valid():
@@ -83,9 +159,8 @@ def add_question(request, course_id, test_id):
 @login_required
 @require_POST
 def delete_question(request, course_id, test_id, question_id):
-    course = _course_or_404(course_id)
-    t = _test_or_404(course_id, test_id)
-    if not is_staff_of(request.user, course):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
         return redirect("courses:detail", course_id=course.id)
     q = get_object_or_404(Question, pk=question_id, test=t)
     try:
@@ -99,9 +174,8 @@ def delete_question(request, course_id, test_id, question_id):
 @login_required
 @require_POST
 def regenerate(request, course_id, test_id):
-    course = _course_or_404(course_id)
-    t = _test_or_404(course_id, test_id)
-    if not is_staff_of(request.user, course):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
         return redirect("courses:detail", course_id=course.id)
     services.regenerate_join_code(t, actor=request.user)
     messages.success(request, f"New join code: {t.join_code}. The old code no longer works.")
@@ -111,9 +185,8 @@ def regenerate(request, course_id, test_id):
 @login_required
 @require_POST
 def release(request, course_id, test_id):
-    course = _course_or_404(course_id)
-    t = _test_or_404(course_id, test_id)
-    if not is_staff_of(request.user, course):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
         return redirect("courses:detail", course_id=course.id)
     try:
         services.release_results(t, actor=request.user)
@@ -155,7 +228,7 @@ def join(request, code):
 def take(request, code):
     t = _test_by_code(code)
     state, attempt = services.join_state(t, student=request.user)
-    if state == "upcoming" or state == "closed":
+    if state in ("upcoming", "closed", "released"):
         return redirect("assessments:join", code=code)
     if not attempt:
         try:
@@ -168,11 +241,21 @@ def take(request, code):
         attempt.refresh_from_db()
     if attempt.submitted_at:
         return redirect("assessments:join", code=code)
-    answers = {a.question_id: a for a in attempt.answers.all()}
+    sections = t.active_sections()
+    keys = [s["key"] for s in sections]
+    key = attempt.current_section
+    idx = keys.index(key)
+    grouped = attempt.section_questions()
+    deadline = attempt.deadline()
     return render(request, "assessments/take.html", {
-        "test": t, "attempt": attempt, "questions": attempt.drawn_questions(),
-        "answers": answers,
-        "expires_epoch": int(attempt.expires_at.timestamp()),
+        "test": t, "attempt": attempt,
+        "questions": grouped[key],
+        "answers": {a.question_id: a for a in attempt.answers.all()},
+        "expires_epoch": int(deadline.timestamp()) if deadline else 0,
+        "section_number": idx + 1,
+        "section_total": len(sections),
+        "section_label": sections[idx]["label"],
+        "is_last": idx == len(sections) - 1,
     })
 
 
@@ -195,6 +278,20 @@ def save(request, code):
     if request.headers.get("x-requested-with") == "fetch":
         return JsonResponse({"ok": True})
     messages.success(request, "Answer saved.")
+    return redirect("assessments:take", code=code)
+
+
+@login_required
+@require_POST
+def advance(request, code):
+    t = _test_by_code(code)
+    attempt = Attempt.objects.filter(test=t, student=request.user).first()
+    if not attempt:
+        raise Http404()
+    services.finalize(attempt)
+    attempt.refresh_from_db()
+    if not attempt.submitted_at:
+        services.advance_section(attempt)
     return redirect("assessments:take", code=code)
 
 

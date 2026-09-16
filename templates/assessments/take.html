@@ -5,8 +5,10 @@
 {% block content %}
 <div class="page-head">
   <div><h1>{{ test.title }}</h1>
-  <p class="muted small">Answers save as you go. The test submits itself when time runs out.</p></div>
-  <div><span id="countdown" class="pill" data-expires="{{ expires_epoch }}">--:--</span></div>
+  <p class="muted small">Section {{ section_number }} of {{ section_total }}: {{ section_label }} ·
+    answers save as you go · you cannot come back to a section after it ends.</p></div>
+  <div><span id="countdown" class="pill" data-expires="{{ expires_epoch }}"
+    data-last="{% if is_last %}1{% else %}0{% endif %}">--:--</span></div>
 </div>
 <form method="post" action="{% url 'assessments:submit_test' test.join_code %}" id="quiz-form">
   {% csrf_token %}
@@ -36,7 +38,14 @@
     {% endif %}
   </div>
   {% endfor %}
-  <button type="submit" class="btn btn-primary">Submit test</button>
+  {% if is_last %}<button type="submit" class="btn btn-primary">Submit test</button>{% endif %}
 </form>
+{% if not is_last %}
+<form method="post" action="{% url 'assessments:advance' test.join_code %}" id="advance-form">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-primary">Next section</button>
+  <p class="muted small">Time left in this section does not carry over.</p>
+</form>
+{% endif %}
 <script src="{% static 'js/quiz.js' %}" defer></script>
 {% endblock %}

@@ -1,4 +1,10 @@
-"""Test lifecycle rules. The server clock is the only clock."""
+"""Test lifecycle rules. The server clock is the only clock.
+
+Draft -> started (lecturer presses Start) -> closed or released. Questions
+and settings lock once the test starts. Each attempt walks the sections in
+order; a section's deadline is fixed when the student enters it, and sections
+already left stay sealed.
+"""
 import secrets
 from datetime import timedelta
 
@@ -7,31 +13,88 @@ from django.utils import timezone
 
 from core.auditing import audit
 
-from .models import Answer, Attempt, Question, Test, make_join_code
+from .models import SECTION_OF_KIND, Answer, Attempt, Question, Test, make_join_code
 
-SUBMIT_GRACE_SECONDS = 10  # submissions in flight at expiry still count
-
-
-def validate_test_window(*, open_at, close_at):
-    if close_at <= open_at:
-        raise ValueError("The closing time must be after the opening time.")
-    if close_at <= timezone.now():
-        raise ValueError("The closing time must be in the future.")
+GRACE_SECONDS = 10  # saves and submits in flight at a deadline still count
+MIN_SECONDS, MAX_SECONDS = 5, 7200
+SECTION_KEYS = ("objective", "tf", "subjective")
 
 
-def create_test(course, *, actor, title, open_at, close_at, n_to_answer,
+def _check_draw(counts):
+    if sum(counts.values()) < 1:
+        raise ValueError("Draw at least one question across the sections.")
+
+
+def _check_seconds(seconds_by_key):
+    for seconds in seconds_by_key.values():
+        if not (MIN_SECONDS <= seconds <= MAX_SECONDS):
+            raise ValueError("Seconds per question must be between 5 and 7200.")
+
+
+def create_test(course, *, actor, title, n_objective=0, n_tf=0, n_subjective=0,
+                seconds_objective=20, seconds_tf=20, seconds_subjective=60,
                 points_per_question=1, allow_review=False):
-    if n_to_answer < 1:
-        raise ValueError("A test must require at least one question.")
-    validate_test_window(open_at=open_at, close_at=close_at)
+    _check_draw({"objective": n_objective, "tf": n_tf, "subjective": n_subjective})
+    _check_seconds({"objective": seconds_objective, "tf": seconds_tf,
+                    "subjective": seconds_subjective})
     t = Test(
-        course=course, title=title.strip(), open_at=open_at, close_at=close_at,
-        join_code=make_join_code(), n_to_answer=n_to_answer,
+        course=course, title=title.strip(), join_code=make_join_code(),
+        n_objective=n_objective, n_tf=n_tf, n_subjective=n_subjective,
+        seconds_objective=seconds_objective, seconds_tf=seconds_tf,
+        seconds_subjective=seconds_subjective,
         points_per_question=points_per_question, allow_review=allow_review,
         created_by=actor,
     )
     t.save()
     audit(actor=actor, action="test.create", obj=t)
+    return t
+
+
+def update_settings(t, *, actor, **fields):
+    """Draw sizes and pacing are editable until the test starts."""
+    if t.started_at:
+        raise ValueError("Settings are locked once the test has started.")
+    if t.results_released_at:
+        raise ValueError("Results are already out.")
+    _check_draw({k: fields[k] for k in ("n_objective", "n_tf", "n_subjective")})
+    _check_seconds({k: fields[k] for k in ("seconds_objective", "seconds_tf", "seconds_subjective")})
+    for f, value in fields.items():
+        setattr(t, f, value)
+    t.save()
+    audit(actor=actor, action="test.update", obj=t)
+    return t
+
+
+def start_test(t, *, actor):
+    """Opens the test. Students can join from this moment - no dates."""
+    if t.results_released_at:
+        raise ValueError("Results are already out.")
+    if t.started_at:
+        raise ValueError("The test has already started.")
+    for s in t.sections():
+        if s["n"] <= 0:
+            continue
+        pool = t.questions.filter(kind=s["kind"]).count()
+        if pool < s["n"]:
+            raise ValueError(
+                f"Not enough questions in the {s['label']} section: "
+                f"you want to draw {s['n']} but the pool has {pool}."
+            )
+    t.started_at = timezone.now()
+    t.save(update_fields=["started_at"])
+    audit(actor=actor, action="test.open", obj=t)
+    return t
+
+
+def close_test(t, *, actor):
+    """Stops new joins. Students already writing keep their own timers."""
+    if not t.started_at:
+        raise ValueError("Start the test first.")
+    if t.closed_at:
+        raise ValueError("The test is already closed.")
+    t.closed_at = timezone.now()
+    t.save(update_fields=["closed_at"])
+    audit(actor=actor, action="test.close", obj=t)
     return t
 
 
@@ -50,6 +113,8 @@ def regenerate_join_code(t, *, actor):
 
 
 def add_question(t, *, actor, kind, text, options="", answer_key="", accepted_answers=""):
+    if t.started_at:
+        raise ValueError("Questions are locked once the test has started.")
     opts = [o.strip() for o in options.splitlines() if o.strip()]
     if kind == Question.Kind.MCQ:
         if not (2 <= len(opts) <= 6):
@@ -74,57 +139,39 @@ def add_question(t, *, actor, kind, text, options="", answer_key="", accepted_an
 
 
 def delete_question(q, *, actor):
-    """Refuses only when the question pool would drop below N to answer."""
+    """The floor is per section: a section keeps at least its draw size."""
     t = q.test
-    if t.questions.count() <= t.n_to_answer:
-        raise ValueError("The pool cannot go below the number of questions to answer.")
+    if t.started_at:
+        raise ValueError("Questions are locked once the test has started.")
+    n_for_kind = {"mcq": t.n_objective, "tf": t.n_tf, "short": t.n_subjective}[q.kind]
+    pool = t.questions.filter(kind=q.kind).count()
+    if pool <= n_for_kind:
+        raise ValueError(
+            "Each section needs at least as many questions as you draw. "
+            "Lower the draw in Edit settings first."
+        )
     q.delete()
     audit(actor=actor, action="question.delete", obj=t)
 
 
 def join_state(t, *, student, now=None):
-    """The five states the join page can be in, plus release."""
+    """The states the join page can be in, plus release."""
     now = now or timezone.now()
     attempt = Attempt.objects.filter(test=t, student=student).first()
     if t.results_released_at:
         return "released", attempt
-    if now < t.open_at:
-        return "upcoming", attempt
-    if attempt and attempt.submitted_at:
-        return "submitted", attempt
-    if attempt and now < attempt.expires_at:
-        return "in_progress", attempt
     if attempt:
-        return "submitted", attempt  # ran out of time; finalize() marks it
-    if now > t.close_at:
+        if attempt.submitted_at:
+            return "submitted", attempt
+        deadline = attempt.deadline()
+        if deadline and now <= deadline + timedelta(seconds=GRACE_SECONDS):
+            return "in_progress", attempt
+        return "submitted", attempt  # out of time; finalize() seals it
+    if not t.started_at:
+        return "upcoming", attempt
+    if t.closed_at:
         return "closed", attempt
     return "open", attempt
-
-
-@transaction.atomic
-def start_attempt(t, *, student):
-    """The draw and expiry are fixed here. Retry-safe: an existing attempt
-    is returned as-is (the unique constraint backstops races)."""
-    attempt = Attempt.objects.filter(test=t, student=student).first()
-    if attempt:
-        return attempt
-    now = timezone.now()
-    if now < t.open_at or now > t.close_at:
-        raise ValueError("This test is not open right now.")
-    if t.questions.count() < t.n_to_answer:
-        raise ValueError("The lecturer has not finished setting this test.")
-    if student_role(student, t) != "student":
-        raise ValueError("Only enrolled students can take this test.")
-    drawn = list(t.questions.order_by("?").values_list("id", flat=True)[: t.n_to_answer])
-    seconds = 0
-    for kind in Question.objects.filter(id__in=drawn).values_list("kind", flat=True):
-        seconds += t.seconds_subjective if kind == Question.Kind.SHORT else t.seconds_objective
-    attempt = Attempt.objects.create(
-        test=t, student=student, drawn_ids=",".join(str(i) for i in drawn),
-        expires_at=now + timedelta(seconds=seconds),
-    )
-    audit(actor=student, action="test.start", obj=t)
-    return attempt
 
 
 def student_role(student, t):
@@ -132,13 +179,84 @@ def student_role(student, t):
     return user_role_in_course(student, t.course)
 
 
-def save_answer(attempt, *, question_id, choice="", text=""):
-    """Idempotent upsert for autosave. Refused once time is up."""
+@transaction.atomic
+def start_attempt(t, *, student):
+    """The draw is fixed here, section by section. Retry-safe: an existing
+    attempt is returned as-is (the unique constraint backstops races)."""
+    attempt = Attempt.objects.filter(test=t, student=student).first()
+    if attempt:
+        return attempt
     now = timezone.now()
-    if attempt.submitted_at or now > attempt.expires_at:
-        raise ValueError("Time is up for this test.")
-    if int(question_id) not in [q.id for q in attempt.drawn_questions()]:
+    if not t.started_at or t.closed_at or t.results_released_at:
+        raise ValueError("This test is not open right now.")
+    if student_role(student, t) != "student":
+        raise ValueError("Only enrolled students can take this test.")
+    drawn = []
+    first = None
+    expiries = {}
+    for s in t.sections():
+        if s["n"] <= 0:
+            continue
+        ids = list(
+            t.questions.filter(kind=s["kind"]).order_by("?").values_list("id", flat=True)[: s["n"]]
+        )
+        if len(ids) < s["n"]:
+            raise ValueError("The lecturer has not finished setting this test.")
+        drawn.extend(ids)
+        if first is None:
+            first = s
+            expiries[Attempt.SECTION_FIELD[s["key"]]] = now + timedelta(
+                seconds=s["n"] * s["seconds"]
+            )
+    attempt = Attempt.objects.create(
+        test=t, student=student, drawn_ids=",".join(str(i) for i in drawn),
+        current_section=first["key"], section_started_at=now, **expiries,
+    )
+    audit(actor=student, action="attempt.start", obj=t)
+    return attempt
+
+
+def advance_section(attempt):
+    """Move to the next section, or submit when the last one is done.
+
+    Moving early is the student's choice; time already spent is not refunded
+    and the section just left is sealed for good."""
+    if attempt.submitted_at:
+        return attempt
+    t = attempt.test
+    sections = t.active_sections()
+    keys = [s["key"] for s in sections]
+    idx = keys.index(attempt.current_section)
+    now = timezone.now()
+    if idx == len(sections) - 1:
+        deadline = attempt.deadline()
+        attempt.submitted_at = min(now, (deadline or now) + timedelta(seconds=GRACE_SECONDS))
+        attempt.save(update_fields=["submitted_at"])
+        audit(actor=attempt.student, action="test.submit", obj=t)
+        return attempt
+    nxt = sections[idx + 1]
+    attempt.current_section = nxt["key"]
+    attempt.section_started_at = now
+    setattr(attempt, Attempt.SECTION_FIELD[nxt["key"]],
+            now + timedelta(seconds=nxt["n"] * nxt["seconds"]))
+    attempt.save()
+    audit(actor=attempt.student, action="attempt.advance", obj=t)
+    return attempt
+
+
+def save_answer(attempt, *, question_id, choice="", text=""):
+    """Idempotent upsert for autosave. Only the live section, only in time."""
+    now = timezone.now()
+    if attempt.submitted_at:
+        raise ValueError("The test is already submitted.")
+    deadline = attempt.deadline()
+    if deadline and now > deadline + timedelta(seconds=GRACE_SECONDS):
+        raise ValueError("Time is up for this section.")
+    target = next((q for q in attempt.drawn_questions() if q.id == int(question_id)), None)
+    if target is None:
         raise ValueError("That question is not part of your attempt.")
+    if SECTION_OF_KIND[target.kind] != attempt.current_section:
+        raise ValueError("That section is not open right now.")
     answer, _ = Answer.objects.update_or_create(
         attempt=attempt, question_id=int(question_id),
         defaults={"choice": (choice or "").strip().upper()[:10], "text": (text or "")[:2000]},
@@ -147,11 +265,15 @@ def save_answer(attempt, *, question_id, choice="", text=""):
 
 
 def finalize(attempt, force=False):
-    """Seal an unsubmitted attempt. Lazy path: past expiry + grace, sealed by
-    the next read. Forced path: results release seals running attempts now."""
+    """Seal an unsubmitted attempt. Lazy path: past the current section's
+    deadline + grace, sealed by the next read. Forced path: results release
+    seals running attempts now."""
+    deadline = attempt.deadline()
+    if deadline is None:
+        return attempt
     now = timezone.now()
-    if attempt.submitted_at is None and (force or now > attempt.expires_at + timedelta(seconds=SUBMIT_GRACE_SECONDS)):
-        attempt.submitted_at = min(now, attempt.expires_at + timedelta(seconds=SUBMIT_GRACE_SECONDS))
+    if attempt.submitted_at is None and (force or now > deadline + timedelta(seconds=GRACE_SECONDS)):
+        attempt.submitted_at = min(now, deadline + timedelta(seconds=GRACE_SECONDS))
         attempt.save(update_fields=["submitted_at"])
         audit(actor=None, action="test.autosubmit", obj=attempt.test,
               detail={"attempt": attempt.id})
@@ -162,9 +284,10 @@ def submit(attempt, *, force=False):
     now = timezone.now()
     if attempt.submitted_at:
         return attempt
-    if not force and now > attempt.expires_at + timedelta(seconds=SUBMIT_GRACE_SECONDS):
-        raise ValueError("Time is up for this test.")
-    attempt.submitted_at = min(now, attempt.expires_at + timedelta(seconds=SUBMIT_GRACE_SECONDS))
+    deadline = attempt.deadline()
+    if not force and (deadline is None or now > deadline + timedelta(seconds=GRACE_SECONDS)):
+        raise ValueError("Time is up for this section.")
+    attempt.submitted_at = min(now, (deadline or now) + timedelta(seconds=GRACE_SECONDS))
     attempt.save(update_fields=["submitted_at"])
     audit(actor=attempt.student, action="test.submit", obj=attempt.test)
     return attempt
@@ -174,10 +297,15 @@ def release_results(t, *, actor):
     """One action, to everyone. Also closes the test permanently."""
     if t.results_released_at:
         raise ValueError("Results are already out.")
+    if not t.started_at:
+        raise ValueError("Start the test before releasing results.")
     for a in t.attempts.filter(submitted_at__isnull=True):
         finalize(a, force=True)
     t.results_released_at = timezone.now()
-    t.save(update_fields=["results_released_at"])
+    updates = ["results_released_at"]
+    if not t.closed_at:
+        t.closed_at = t.results_released_at
+        updates.append("closed_at")
+    t.save(update_fields=updates)
     audit(actor=actor, action="test.release", obj=t)
     return t
-

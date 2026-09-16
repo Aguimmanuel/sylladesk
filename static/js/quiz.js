@@ -1,16 +1,22 @@
-/* Countdown, autosave, auto-submit. Vanilla JS, no dependencies. */
+/* Countdown, autosave, section advance. Vanilla JS, no dependencies. */
 (function () {
   var form = document.getElementById("quiz-form");
   var countdown = document.getElementById("countdown");
   if (!form || !countdown) return;
   var expires = parseInt(countdown.dataset.expires, 10) * 1000;
+  var isLast = countdown.dataset.last === "1";
   var csrf = form.querySelector("[name=csrfmiddlewaretoken]").value;
-  var submitted = false;
+  var movedOn = false;
 
-  function submitNow() {
-    if (submitted) return;
-    submitted = true;
-    form.submit();
+  function moveOn() {
+    if (movedOn) return;
+    movedOn = true;
+    if (isLast) {
+      form.submit();
+    } else {
+      var next = document.getElementById("advance-form");
+      if (next) next.submit();
+    }
   }
 
   function tick() {
@@ -18,7 +24,7 @@
     var m = String(Math.floor(left / 60)).padStart(2, "0");
     var s = String(left % 60).padStart(2, "0");
     countdown.textContent = m + ":" + s;
-    if (left <= 0) submitNow();
+    if (left <= 0) moveOn();
   }
   tick();
   setInterval(tick, 1000);

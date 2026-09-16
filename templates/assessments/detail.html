@@ -6,21 +6,48 @@
 <div class="page-head">
   <div>
     <h1>{{ test.title }}</h1>
-    <p class="muted small">Opens {{ test.open_at|wat }} · closes {{ test.close_at|wat }}
-      · {{ test.n_to_answer }} questions · {{ test.points_per_question }} point(s) each
+    <p class="muted small">Draws: {{ test.n_objective }} multiple choice · {{ test.n_tf }} true/false ·
+      {{ test.n_subjective }} short answer · {{ test.points_per_question }} point(s) each
       · max {{ test.max_score }}</p>
+    <p><span class="pill">
+      {% if test.status == "draft" %}Draft — not started
+      {% elif test.status == "live" %}Live — students can join
+      {% elif test.status == "closed" %}Closed
+      {% else %}Results released{% endif %}
+    </span></p>
   </div>
 </div>
-{% if test.results_released_at %}
+{% if test.status == "released" %}
 <div class="card"><p class="msg msg-success">Results released {{ test.results_released_at|wat }}. The test is closed for good.</p></div>
+{% endif %}
+{% if test.status == "draft" %}
+<div class="card">
+  <h2>Start</h2>
+  <p class="muted small">Press start when the class is ready — everyone joins from that moment, no dates to set.
+    Questions and settings lock once it starts.</p>
+  <form method="post" action="{% url 'assessments:start' course.id test.id %}" class="inline-form"
+        onsubmit="return confirm('Start the test now? Students can join the moment you press it.')">
+    {% csrf_token %}<button type="submit" class="btn btn-primary">Start test</button>
+  </form>
+  <a class="btn" href="{% url 'assessments:edit' course.id test.id %}">Edit settings</a>
+</div>
+{% elif test.status == "live" %}
+<div class="card">
+  <h2>Running</h2>
+  <p class="muted small">Started {{ test.started_at|wat }}. Press Close to stop new joiners —
+    students already writing finish their own timers.</p>
+  <form method="post" action="{% url 'assessments:close' course.id test.id %}" class="inline-form"
+        onsubmit="return confirm('Close the test? Students already writing can finish; nobody new can join.')">
+    {% csrf_token %}<button type="submit" class="btn">Close test</button>
+  </form>
+</div>
 {% endif %}
 
 <div class="card">
   <h2>Join code</h2>
   <p style="font-size:1.6rem;letter-spacing:.3em"><strong>{{ test.join_code }}</strong></p>
-  <p class="muted small">Share it with the class when the window opens.
-    Students type it under "Join a test" on their courses page.</p>
-  {% if not test.results_released_at %}
+  <p class="muted small">Share it with the class. Students type it under "Join a test" on their courses page.</p>
+  {% if test.status != "released" %}
   <form method="post" action="{% url 'assessments:regenerate' course.id test.id %}" class="inline-form">
     {% csrf_token %}<button type="submit" class="btn">Regenerate code</button>
   </form>
@@ -38,16 +65,21 @@
     {% else %}
       <div class="muted small">Key: {{ q.answer_key }}</div>
     {% endif %}
+    {% if not locked %}
     <form method="post" action="{% url 'assessments:delete_question' course.id test.id q.id %}" class="inline-form"
           onsubmit="return confirm('Remove this question?')">{% csrf_token %}
       <button type="submit" class="btn btn-ghost">Remove</button>
     </form>
+    {% endif %}
   </div>
   {% empty %}
-  <p class="muted">No questions yet. Add at least {{ test.n_to_answer }} so students can start.</p>
+  <p class="muted">No questions yet. Add questions to each section, then press Start.</p>
   {% endfor %}
 </div>
 
+{% if locked %}
+<div class="card"><p class="muted">Questions are locked while the test runs.</p></div>
+{% else %}
 <h2>Add a question</h2>
 <div class="card">
   <form method="post" action="{% url 'assessments:add_question' course.id test.id %}" class="stack">
@@ -63,11 +95,12 @@
     <button type="submit" class="btn btn-primary">Add question</button>
   </form>
 </div>
+{% endif %}
 
 <h2>Attempts</h2>
 <div class="card">
   <p>{{ attempts }} started · {{ submitted }} submitted</p>
-  {% if not test.results_released_at %}
+  {% if test.status == "live" or test.status == "closed" %}
   <form method="post" action="{% url 'assessments:release' course.id test.id %}"
         onsubmit="return confirm('Release results to everyone? The test closes for good.')">
     {% csrf_token %}<button type="submit" class="btn btn-primary">Release results</button>

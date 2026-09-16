@@ -4,13 +4,15 @@
 {% block content %}
 <div class="card center-card">
   <h1>{{ test.title }}</h1>
-  <p class="muted">{{ test.course.code }} · opens {{ test.open_at|wat }} · closes {{ test.close_at|wat }}</p>
+  <p class="muted">{{ test.course.code }}</p>
 
   {% if state == "upcoming" %}
-    <p>This test has not opened yet. Come back at the opening time.</p>
+    <p>The lecturer has not started the test yet. This page unlocks the moment it starts.</p>
   {% elif state == "open" %}
     <p><a class="btn btn-primary" href="{% url 'assessments:take' test.join_code %}">Start the test</a></p>
-    <p class="muted small">Your timer starts the moment you start and submits itself at zero.</p>
+    <p class="muted small">Your timer starts the moment you start and submits itself when time runs out.
+      The test has three sections: objective, true/false, subjective — each on its own timer, and you
+      cannot go back to a section after it ends.</p>
   {% elif state == "in_progress" %}
     <p class="msg msg-error">Your test is running. Time is ticking.</p>
     <p><a class="btn btn-primary" href="{% url 'assessments:take' test.join_code %}">Continue</a></p>

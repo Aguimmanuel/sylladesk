@@ -72,12 +72,12 @@
 {% if tests %}
 <div class="card">
   <table class="table">
-    <thead><tr><th>Title</th><th>Window</th>{% if is_staff %}<th>Code</th><th></th>{% endif %}</tr></thead>
+    <thead><tr><th>Title</th><th>Status</th>{% if is_staff %}<th>Code</th><th></th>{% endif %}</tr></thead>
     <tbody>
     {% for test in tests %}
       <tr>
         <td>{{ test.title }}</td>
-        <td class="muted small">{{ test.open_at|wat }} – {{ test.close_at|wat }}</td>
+        <td class="muted small">{% if test.status == "released" %}Released{% elif test.status == "closed" %}Closed{% elif test.status == "live" %}Live{% else %}Draft{% endif %}</td>
         {% if is_staff %}
         <td><strong>{{ test.join_code }}</strong></td>
         <td class="row-actions"><a class="btn" href="{% url 'assessments:detail' course.id test.id %}">Open</a></td>
