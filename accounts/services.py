@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.auditing import audit
+
 from .models import SignupAttempt
 
 User = get_user_model()
@@ -31,9 +32,9 @@ class ImportReport:
 
 @transaction.atomic
 def import_staff_csv(fileobj, *, actor=None) -> ImportReport:
-    """FR-03: CSV with columns full_name,email[,role]. Per-row validation,
-    skip-with-reason report, idempotent re-runs (existing emails skipped).
-    Created users get an unusable password + must_reset_password=True (FR-01)."""
+    """CSV with columns full_name,email[,role]. Per-row validation with a
+    skip-with-reason report; re-runs are idempotent (existing emails skipped).
+    Created users get an unusable password and must_reset_password=True."""
     report = ImportReport()
     data = fileobj.read()
     if isinstance(data, bytes):
@@ -84,10 +85,15 @@ def import_staff_csv(fileobj, *, actor=None) -> ImportReport:
     )
     return report
 
-def signup_throttle_check_and_hit(
-    ip: str, limit: int = 20, window_seconds: int = 60
-) -> bool:
+
+def signup_throttle_check_and_hit(ip: str, limit: int = 20, window_seconds: int = 60) -> bool:
     """True = allowed (attempt recorded); False = throttled."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from .models import SignupAttempt
+
     now = timezone.now()
     SignupAttempt.objects.filter(created_at__lt=now - timedelta(days=1)).delete()
     recent = SignupAttempt.objects.filter(

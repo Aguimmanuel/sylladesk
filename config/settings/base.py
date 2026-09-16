@@ -1,6 +1,6 @@
 """
 Shared settings. Development/production override what differs.
-Everything environment-specific comes from .env (12-factor, FR-25/ops).
+Everything environment-specific comes from .env.
 """
 from datetime import timedelta
 from pathlib import Path
@@ -24,13 +24,13 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # third-party
-    "axes",  # login rate-limiting (FR-04)
-    # project apps (PROJECT-STRUCTURE.md)
+    "axes",  # login rate-limiting
+    # project apps
     "core",
     "accounts",
     "courses",
     "materials",
-    # "django_tasks" + "django_tasks.backends.database" land in Phase 5 (assessments)
+    # django_tasks lands with assessments
 ]
 
 MIDDLEWARE = [
@@ -43,7 +43,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
-    "accounts.middleware.MustResetPasswordMiddleware",  # FR-01: temp credentials must reset first
+    "accounts.middleware.MustResetPasswordMiddleware",  # temp credentials must reset first
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -94,17 +94,17 @@ LOGOUT_REDIRECT_URL = "accounts:login"
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-     "OPTIONS": {"min_length": 10}},  # FR-04
+     "OPTIONS": {"min_length": 10}},  # minimum 10 characters
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 PASSWORD_HASHERS = [
-    "django.contrib.auth.hashers.Argon2PasswordHasher",  # FR-04 / research section 5
+    "django.contrib.auth.hashers.Argon2PasswordHasher",  # modern password hashing
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
 ]
 
-# --- django-axes: 5 failed logins / 15 min cooldown per username+IP (FR-04) ---
+# --- django-axes: 5 failed logins -> 15 min lockout per username+IP ---
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
@@ -116,10 +116,9 @@ AXES_RESET_ON_SUCCESS = True
 AXES_ENABLED = env.bool("AXES_ENABLED", default=True)
 
 # --- files (PRD section 3.2, core.storage is the F1<->R1 seam) ---
-# ── Email (V2-13 forgot-password, shipped as Phase 2 pull) ──────────
-# Local dev: no EMAIL_HOST -> console backend (reset emails print to the terminal).
-# Production: set the EMAIL_* values (Gmail App Password) and SMTP is picked
-# automatically. Swapping to Resend later = changing env values only, zero code.
+# ── Email ──────────────────────────────────────────────────────────
+# No EMAIL_HOST locally: mail prints to the terminal. On the server the
+# backend is chosen automatically from the environment.
 EMAIL_HOST = env("EMAIL_HOST", default="")
 APPS_SCRIPT_MAIL_URL = env("APPS_SCRIPT_MAIL_URL", default="")
 APPS_SCRIPT_MAIL_TOKEN = env("APPS_SCRIPT_MAIL_TOKEN", default="")
@@ -132,7 +131,7 @@ elif EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"  # works off Render-free
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # dev: mail to terminal
-EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)  # seconds; never hang a worker on SMTP
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)  # seconds
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
@@ -142,15 +141,15 @@ PASSWORD_RESET_TIMEOUT = 60 * 60  # reset links die after 1 hour
 
 FILES_BACKEND = env("FILES_BACKEND", default="db")  # "db" (free hosting) | "disk" (VPS)
 FILES_DISK_ROOT = Path(env("FILES_DISK_ROOT", default=str(BASE_DIR / "var" / "files")))
-MATERIAL_MAX_MB = 30   # FR-07
-SUBMISSION_MAX_MB = 15  # FR-11
+MATERIAL_MAX_MB = 30   # lecture material cap
+SUBMISSION_MAX_MB = 15  # assignment submission cap
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 LANGUAGE_CODE = "en"
-TIME_ZONE = "Africa/Lagos"   # display tz; everything stored UTC (D-13)
+TIME_ZONE = "Africa/Lagos"   # display timezone; stored UTC
 USE_I18N = True
 USE_TZ = True
 

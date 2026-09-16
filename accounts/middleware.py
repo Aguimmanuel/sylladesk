@@ -1,5 +1,5 @@
-"""FR-01: accounts created with a temp credential must set a real password
-before reaching ANY other page. Server-enforced, not a UI suggestion."""
+"""Accounts on a temp credential must set a real password before any
+other page. Enforced server-side."""
 from django.shortcuts import redirect
 
 _ALLOWED_PREFIXES = (

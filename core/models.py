@@ -3,7 +3,7 @@
 Per PRD section 3.2 and PROJECT-STRUCTURE.md:
 - File      — ONE registry for materials AND submissions (sha256 = dedup/integrity).
 - FileBlob  — bytes for the "db" storage backend (free hosting F1: Postgres bytea).
-- AuditLog  — append-only; written ONLY via core.auditing.audit() (FR-30).
+- AuditLog  — append-only; written only via core.auditing.audit().
 """
 from django.conf import settings
 from django.db import models

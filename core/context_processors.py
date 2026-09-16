@@ -4,7 +4,7 @@ BRAND_NAME = "SyllaDesk"
 
 
 def brand(request):
-    # "Forgot password?" link shows only when a real email sender is configured
+    # "Forgot password?" link renders only when a sender is configured
     apps_script_ready = bool(getattr(settings, "APPS_SCRIPT_MAIL_URL", "")
                               and getattr(settings, "APPS_SCRIPT_MAIL_TOKEN", ""))
     return {"BRAND_NAME": BRAND_NAME,

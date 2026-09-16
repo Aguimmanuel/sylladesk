@@ -9,7 +9,7 @@ from .helpers import make_user
 
 class ForcedResetTests(TestCase):
     def setUp(self):
-        # staff account created by import/admin: temp credential state (FR-01)
+        # staff account created by import/admin: temp credential state
         self.user = make_user(
             username="lecturer@psb.lms",
             global_role="lecturer",

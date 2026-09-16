@@ -88,10 +88,7 @@ class MaterialDownloadTests(TestCase):
         self.assertEqual(r.status_code, 404)
 
     def test_upload_form_targets_upload_endpoint(self):
-        """Regression 2026-09-14: this form once had NO action attribute, so every
-        browser POSTed it to the course page instead of the upload view - silent,
-        invisible to view-level tests, exactly what the owner hit live. Paint must
-        be tested, not just plumbing."""
+        """The upload form must post to the upload endpoint, not the course page."""
         self.client.force_login(self.course.lecturer)  # self-contained: works in either test class
         r = self.client.get(reverse("courses:detail", args=[self.course.id]))
         self.assertContains(

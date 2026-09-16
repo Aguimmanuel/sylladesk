@@ -27,7 +27,7 @@ User = get_user_model()
 
 
 class LoginView(LoginView):
-    """FR-01/04. django-axes provides the lockout; FR-01 middleware provides the
+    """django-axes provides the lockout; middleware provides the
     forced-reset redirect. Template: accounts/login.html."""
 
     template_name = "accounts/login.html"
@@ -45,7 +45,7 @@ class LogoutView(LogoutView):
 
 
 class PasswordSetView(FormView):
-    """The one page a temp-credential user may see (FR-01)."""
+    """The only page a temp-credential user may see."""
 
     template_name = "accounts/password_set.html"
     form_class = PasswordSetForm
@@ -87,9 +87,10 @@ def _names_match(signup_name: str, entry) -> bool:
 
 
 class StudentSignupView(FormView):
-    """FR-33: signup ONLY against the lecturer's authenticated roster.
-    One account per reg number; name-match where roster has names;
-    auto-enrolls in every course listing that number; rate-limited; audited."""
+    """Student signup against the lecturer's uploaded roster.
+
+    One account per reg number; the name is checked where the roster carries
+    one; enrolls into every course listing that number. Rate-limited, audited."""
 
     template_name = "accounts/signup.html"
     form_class = None  # set below to avoid circular import at module load
@@ -169,11 +170,10 @@ class StudentSignupView(FormView):
 
 
 class ThrottledPasswordResetView(auth_views.PasswordResetView):
-    """V2-13: 'Forgot password?' - emails a 1-hour reset link (Gmail SMTP).
-    Same per-IP throttle as signup, tighter budget (10/hour). Generic success
-    page: the response must NOT reveal whether the address has an account."""
+    """Emails a one-hour reset link. Per-IP throttle, 10 requests/hour. The
+    success page does not reveal whether the address has an account."""
 
-    form_class = LoudPasswordResetForm  # loud: send failures reach form_valid's handler
+    form_class = LoudPasswordResetForm  # send failures must reach form_valid
     template_name = "registration/password_reset_form.html"
     email_template_name = "registration/password_reset_email.html"
     subject_template_name = "registration/password_reset_subject.txt"
@@ -190,10 +190,8 @@ class ThrottledPasswordResetView(auth_views.PasswordResetView):
         try:
             return super().form_valid(form)
         except (smtplib.SMTPException, OSError):
-            # Render's FREE tier blocks outbound SMTP ports entirely (since
-            # 2025-09); providers also have ordinary outages, and an App
-            # Password can be wrong. None of that may crash a worker or show
-            # the student a 500. Log server-side; tell the student the truth.
+            # SMTP can be blocked by the hosting tier or simply down. Log
+            # server-side and give the student a workable message, not a 500.
             logger.exception("Password-reset email could not be sent")
             messages.error(self.request,
                 "We could not send the reset email right now. "
@@ -202,15 +200,14 @@ class ThrottledPasswordResetView(auth_views.PasswordResetView):
 
 
 class PasswordResetDone(auth_views.PasswordResetDoneView):
-    """The done page reads `email_configured` from the brand() context processor:
-    when no EMAIL_HOST_USER is configured, it says honestly that no mail went out."""
+    """Reads email_configured from the brand() context processor: without a
+    configured sender, the page states that no mail went out."""
     template_name = "registration/password_reset_done.html"
 
 
 class ResetConfirm(auth_views.PasswordResetConfirmView):
-    """Sets the new password. ALSO clears the forced-reset flag if it was set:
-    a student with a temp credential who resets by email must not be bounced
-    into setting a password twice."""
+    """Sets the new password and clears the forced-reset flag if set, so a
+    temp-credential user who resets by email is not asked twice."""
 
     template_name = "registration/password_reset_confirm.html"
     success_url = reverse_lazy("accounts:password_reset_complete")

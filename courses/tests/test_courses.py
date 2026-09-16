@@ -60,7 +60,7 @@ class CourseVisibilityTests(TestCase):
         self.assertEqual(r.status_code, 200)
 
     def test_duplicate_code_different_case_blocked(self):
-        """Owner live finding 2026-09-14: 'psb 413' must not duplicate 'PSB 413'."""
+        """Course codes are normalized before the uniqueness check."""
         make_course()  # PSB 413 / 2025/2026
         self.client.force_login(make_lecturer())
         r = self.client.post(reverse("courses:create"), {
@@ -70,9 +70,7 @@ class CourseVisibilityTests(TestCase):
         self.assertEqual(Course.objects.filter(code="PSB 413").count(), 1)
 
     def test_co_lecturer_sees_course_in_list(self):
-        """Owner question 2026-09-15: two lecturers on one course is normal.
-        The co-lecturer (lecturer-role Enrollment on someone else's course)
-        must see it in My courses with full staff rights."""
+        """A co-lecturer (lecturer-role enrollment) sees the course in My courses."""
         from courses.models import Enrollment
         c = make_course()
         co = make_user(username="colect@psb.lms", global_role="lecturer")

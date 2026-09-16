@@ -1,4 +1,4 @@
-"""THE object-level permission helper every app calls (FR-02, deny-by-default)."""
+"""Object-level permission checks. Deny by default."""
 from .models import Enrollment
 
 

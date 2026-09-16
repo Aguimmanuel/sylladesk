@@ -14,7 +14,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         LECTURER = "lecturer", "Lecturer"
         STUDENT = "student", "Student"
 
-    # Students: username = normalized registration number (FR-33, Q-F).
+    # Students: username = normalized registration number.
     # Staff: username = email.
     username = models.CharField(max_length=64, unique=True)
     email = models.EmailField(unique=True, null=True, blank=True)
@@ -25,7 +25,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     global_role = models.CharField(
         max_length=16, choices=GlobalRole.choices, default=GlobalRole.STUDENT
     )
-    # FR-01: operator-created accounts start flagged; they can't do anything
+    # Operator-created accounts start flagged; they can't do anything
     # until they set their own password (enforced by accounts.middleware).
     must_reset_password = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
@@ -54,7 +54,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_student_role(self):
         return self.global_role == self.GlobalRole.STUDENT
 
+
 class SignupAttempt(models.Model):
-    """Tiny DB-backed throttle for signup (FR-33: >=20/min per IP rejected)."""
+    """DB-backed signup throttle: at most 20 attempts per IP per minute."""
+
     ip = models.GenericIPAddressField(db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)

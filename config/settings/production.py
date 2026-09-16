@@ -25,10 +25,9 @@ STORAGES = {
     },
 }
 
-# Backups (FR-25): B2/restic wiring is its own step right after first deploy.
-# Until then, warn loudly at boot instead of refusing — Neon's free tier keeps
-# ~7 days of point-in-time history as the interim safety net. The permanent
-# offsite backup (scripts/backup.sh) must land before real student data loads.
+# Offsite backups run from GitHub Actions via scripts/backup.sh. Until
+# BACKUP_TARGET is set, warn at boot instead of refusing; Neon keeps ~7 days
+# of point-in-time history in the meantime.
 if "collectstatic" not in sys.argv and "makemigrations" not in sys.argv:
     if not env("BACKUP_TARGET", default=""):
         warnings.warn(

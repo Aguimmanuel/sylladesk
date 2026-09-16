@@ -1,9 +1,9 @@
-"""The ONE storage seam. Feature apps never touch disks or blobs directly.
+"""Storage seam: feature apps never touch disks or blobs directly.
 
-Two backends behind one interface (master PRD section 8):
-- DBStorage   — Postgres bytea via core.FileBlob. Free-hosting default (F1).
-- DiskStorage — VPS local disk `files/{course}/{kind}/{uuid}.{ext}` (R1).
-Swapping hosting = setting FILES_BACKEND, zero feature-code changes (D-12).
+Two backends behind one interface:
+- DBStorage   - Postgres bytea via core.FileBlob (default).
+- DiskStorage - local disk files/{course}/{kind}/{uuid}.{ext}.
+Switching is a FILES_BACKEND setting; no feature code changes.
 """
 import hashlib
 import uuid

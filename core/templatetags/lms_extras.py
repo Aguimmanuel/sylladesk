@@ -1,4 +1,4 @@
-"""Template helpers: size labels (FR-08), WAT timestamps (D-13), inline-SVG icons (UX-3)."""
+"""Template helpers: human file sizes, WAT timestamps, inline SVG icons."""
 from django import template
 from django.utils import timezone
 from django.utils.safestring import mark_safe
@@ -35,7 +35,7 @@ def size_label(num_bytes) -> str:
 
 @register.filter
 def wat(value) -> str:
-    """Any UTC timestamp -> '10 Sep 2026, 14:05 WAT' (D-13)."""
+    """Format a UTC timestamp in Africa/Lagos time."""
     if not value:
         return ""
     local = timezone.localtime(value)

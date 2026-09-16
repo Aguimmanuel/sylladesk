@@ -7,7 +7,7 @@ from accounts.models import User  # noqa: F401  (keep the import explicit for re
 
 
 def healthz(request):
-    """FR-26: app live + database reachable. 503 when the DB is down."""
+    """App live + database reachable. 503 when the DB is down."""
     try:
         with connection.cursor() as cur:
             cur.execute("SELECT 1")

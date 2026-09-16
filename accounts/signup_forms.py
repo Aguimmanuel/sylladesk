@@ -1,5 +1,4 @@
-"""Student self-signup (FR-33) — allowlist-gated by authenticated roster."""
-
+"""Student self-signup, gated by the lecturer's roster."""
 from django import forms
 from django.contrib.auth import password_validation
 
@@ -9,15 +8,9 @@ from core.utils import normalize_reg_no
 class StudentSignupForm(forms.Form):
     reg_no = forms.CharField(label="Registration number", max_length=50)
     full_name = forms.CharField(label="Full name", max_length=120)
-    email = forms.EmailField(
-        label="Email", max_length=254
-    )  # account-recovery path (V2-13 prep)
-    password1 = forms.CharField(
-        label="Password", strip=False, widget=forms.PasswordInput
-    )
-    password2 = forms.CharField(
-        label="Confirm password", strip=False, widget=forms.PasswordInput
-    )
+    email = forms.EmailField(label="Email", max_length=254)  # used for account recovery
+    password1 = forms.CharField(label="Password", strip=False, widget=forms.PasswordInput)
+    password2 = forms.CharField(label="Confirm password", strip=False, widget=forms.PasswordInput)
 
     def clean_reg_no(self):
         return normalize_reg_no(self.cleaned_data.get("reg_no"))

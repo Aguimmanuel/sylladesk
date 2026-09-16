@@ -5,7 +5,7 @@ from .models import AuditLog, File, FileBlob
 
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
-    """Append-only browser (FR-24/30). No add/change/delete — ever."""
+    """Append-only: no add, change, or delete."""
     list_display = ("at", "action", "actor", "object_type", "object_id")
     list_filter = ("action",)
     search_fields = ("actor__username", "object_id", "detail")

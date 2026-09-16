@@ -1,8 +1,8 @@
-"""Courses, enrollments, and the authenticated roster (FR-05/06).
+"""Courses, enrollments, and the authenticated roster.
 
-The roster IS the allowlist: a RosterEntry must exist (and be unclaimed)
-before a student can create an account (FR-33). Claiming marks the entry
-and creates the enrollment — one transaction, race-safe.
+A RosterEntry must exist and be unclaimed before a student can create an
+account. Claiming marks the entry and creates the enrollment in a single
+transaction.
 """
 from django.conf import settings
 from django.db import models
@@ -28,8 +28,7 @@ class Course(models.Model):
         ordering = ["code"]
 
     def clean(self):
-        """Normalize code/session so 'psb 413' can never become a duplicate
-        of 'PSB 413' (unique_together is case-sensitive in Postgres)."""
+        """Normalize code and session; the unique constraint is case-sensitive."""
         self.code = " ".join((self.code or "").split()).upper()
         self.session = " ".join((self.session or "").split())
 

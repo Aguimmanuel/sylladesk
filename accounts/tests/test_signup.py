@@ -96,9 +96,8 @@ class SignupTests(TestCase):
         self.assertEqual(User.objects.filter(global_role="student").count(), 0)
 
     def test_five_digit_reg_numbers_work(self):
-        """Owner clarification 2026-09-13: the tail can be 5 OR 6 digits — the
-        system never parses digits, so both must work, and a zero-padded
-        6-digit sibling must be a different account, not a collision."""
+        """Reg number tails may be 5 or 6 digits; a zero-padded sibling is a
+        distinct account."""
         c = seed()
         import_roster(c, io.StringIO(
             "registration_number,full_name\nMOUAU/PSB/26/04321,Five Digit\n"), actor=None)
@@ -109,7 +108,7 @@ class SignupTests(TestCase):
         })
         self.assertRedirects(r, reverse("home"), fetch_redirect_response=False)
         self.assertTrue(User.objects.filter(reg_no="MOUAU/PSB/26/04321").exists())
-        # zero-padded 6-digit sibling = different person, also fine
+        # zero-padded sibling: distinct account
         import_roster(c, io.StringIO(
             "registration_number,full_name\nMOUAU/PSB/26/004321,Six Digit\n"), actor=None)
         self.client.logout()
@@ -150,8 +149,8 @@ class SignupTests(TestCase):
         self.assertContains(r, "not on any course roster")
 
     def test_new_course_roster_claims_at_list_view(self):
-        """Owner live finding 2026-09-14: roster uploaded AFTER signup must still
-        reach the student - claimed on their next visit to My courses."""
+        """A roster uploaded after signup is claimed on the student's next visit
+        to My courses."""
         seed()
         self.client.post(reverse("accounts:signup"), {
             "reg_no": REG, "full_name": "Ada Obi", "email": "ada.obi@example.com",

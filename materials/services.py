@@ -1,4 +1,4 @@
-"""Upload validation (FR-07): extension whitelist + pure-python magic-byte check.
+"""Upload validation: extension whitelist + pure-python magic-byte check.
 
 python-magic needs the libmagic C library, which the Render native runtime
 doesn't guarantee — so V1 sniffs known signatures directly. Same protection,

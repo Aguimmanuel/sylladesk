@@ -95,9 +95,7 @@ class PasswordResetTests(TestCase):
         self.assertEqual(len(mail.outbox), 10)
 
     def test_done_page_honest_when_sending_not_configured(self):
-        """Owner live finding 2026-09-15: reset 'did nothing' - because no EMAIL_*
-        env values existed. The done page must SAY so instead of a fake 'check
-        your email' that never arrives."""
+        """Without a configured sender, the done page must say no mail went out."""
         make_ada()
         r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
         r = self.client.get(reverse("accounts:password_reset_done"))
@@ -127,10 +125,8 @@ class MailOutageTests(TestCase):
     @override_settings(EMAIL_BACKEND="accounts.tests.test_password_reset.FailingMailBackend",
                        EMAIL_HOST_USER="sender@example.com")
     def test_outage_degrades_gracefully_no_500(self):
-        """Regression 2026-09-15: an SMTP outage hung a gunicorn worker (60s) and
-        served the student a 500. Stock Django would also LIE ('check your email')
-        because PasswordResetForm.send_mail swallows every exception - hence the
-        loud form: failures reach the view, which tells the student the truth."""
+        """An SMTP outage must degrade to a friendly redirect and message — never
+        a 500, never a false success page."""
         make_ada()
         r = self.client.post(reverse("accounts:password_reset"), {"email": EMAIL})
         self.assertEqual(r.status_code, 302)  # graceful, not a 500
@@ -140,7 +136,7 @@ class MailOutageTests(TestCase):
 
 
 class AppsScriptMailTests(TestCase):
-    """The zero-naira route: mail rides HTTPS to the owner's Apps Script Web App."""
+    """Mail goes over HTTPS to the Apps Script Web App."""
 
     @override_settings(EMAIL_BACKEND="core.mail_backends.AppsScriptMailBackend",
                        APPS_SCRIPT_MAIL_URL="https://script.example/exec",
@@ -160,7 +156,7 @@ class AppsScriptMailTests(TestCase):
     @override_settings(EMAIL_BACKEND="core.mail_backends.AppsScriptMailBackend",
                        APPS_SCRIPT_MAIL_URL="https://script.example/exec",
                        APPS_SCRIPT_MAIL_TOKEN="tok")
-    def test_backend_failure_is_loud_not_silent(self):
+    def test_backend_failure_surfaces_to_student(self):
         make_ada()
         with mock.patch("core.mail_backends.AppsScriptMailBackend._post") as post:
             post.side_effect = OSError("script unreachable")

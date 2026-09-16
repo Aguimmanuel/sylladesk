@@ -19,9 +19,8 @@ User = get_user_model()
 @login_required
 def list_courses(request):
     user = request.user
-    # FR-33 late claim: a roster uploaded AFTER the student signed up must still
-    # reach them (carry-overs, borrowed courses, second courses). Claiming is
-    # idempotent and race-safe, so it is safe to run on every list visit.
+    # Late claim: a roster uploaded after a student signed up still reaches
+    # them on their next visit. Idempotent and race-safe on every list view.
     if user.global_role == User.GlobalRole.STUDENT and user.reg_no:
         with transaction.atomic():
             joined = claim_roster_entries(user)
@@ -104,8 +103,8 @@ def detail(request, course_id):
 @login_required
 @require_POST
 def enrollment_toggle(request, course_id, user_id, action):
-    """Lecturer removes/restores a student's course participation (V1 decision
-    2026-09-14). Soft toggle: the enrollment row survives for audit + restore."""
+    """Remove or restore a student's participation. Soft toggle: the row
+    survives for audit and restore."""
     if action not in ("remove", "restore"):
         raise Http404()
     course = _course_or_404(course_id)

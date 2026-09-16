@@ -1,15 +1,11 @@
-"""Mail via the owner's Google Apps Script Web App (V2-13, zero-naira route).
+"""Sends mail through a Google Apps Script Web App.
 
-Render's FREE tier blocks outbound SMTP ports (25/465/587) entirely, but
-HTTPS on 443 is always open. This backend POSTs JSON to an Apps Script Web
-App which calls MailApp.sendEmail() from the owner's Gmail.
+Render's free tier blocks outbound SMTP, so mail goes out over HTTPS
+instead: a JSON POST to the Web App, which relays via Gmail.
 
-Render env (never in git/chat):
-  APPS_SCRIPT_MAIL_URL    the .../exec URL of the deployed Web App
-  APPS_SCRIPT_MAIL_TOKEN  long random string, MUST match the script's SHARED_TOKEN
-
-The script must answer {"ok": true} - anything else raises OSError so the
-loud password-reset path tells the student the truth instead of lying.
+Requires APPS_SCRIPT_MAIL_URL and APPS_SCRIPT_MAIL_TOKEN. The script must
+reply {"ok": true}; anything else raises OSError so callers treat the
+send as failed.
 """
 import json
 import urllib.request
@@ -51,7 +47,7 @@ class AppsScriptMailBackend(BaseEmailBackend):
             with urllib.request.urlopen(req, timeout=15) as resp:
                 body = resp.read().decode("utf-8", "replace")
         except OSError:
-            raise  # network/timeout errors keep their meaning for the caller
+            raise
         if '"ok":true' not in body.replace(" ", ""):
             raise OSError(f"Apps Script mailer did not confirm success: {body[:200]}")
         return True

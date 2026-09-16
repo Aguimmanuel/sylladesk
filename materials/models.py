@@ -1,4 +1,4 @@
-"""Lecture materials (FR-07–09). Bytes live in core.File via core.storage."""
+"""Lecture materials. Bytes live in core.File via core.storage."""
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -19,7 +19,7 @@ class Material(models.Model):
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL
     )
     download_count = models.PositiveIntegerField(default=0)
-    is_deleted = models.BooleanField(default=False)  # soft delete (FR-08)
+    is_deleted = models.BooleanField(default=False)  # soft delete
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -3,12 +3,12 @@ import re
 
 
 def normalize_reg_no(value: str | None) -> str:
-    """Registration numbers: uppercase, trimmed, internal whitespace collapsed (FR-06/33)."""
+    """Registration numbers: uppercase, trimmed, all internal whitespace removed."""
     return re.sub(r"\s+", "", (value or "")).strip().upper()
 
 
 def human_size(num_bytes: int) -> str:
-    """1280 -> '1.3 KB' (FR-08 size labels). Rounds half-up — users over-estimate nicer than under."""
+    """Bytes -> '1.3 KB', rounded half-up."""
     from decimal import Decimal, ROUND_HALF_UP
 
     size = Decimal(num_bytes or 0)

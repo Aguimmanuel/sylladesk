@@ -1,4 +1,4 @@
-"""Roster import (FR-06) — idempotent, claimed-aware, audited."""
+"""Roster import: idempotent, claimed-aware, audited."""
 import csv
 import io
 from dataclasses import dataclass, field
@@ -65,7 +65,7 @@ def import_roster(course, fileobj, *, actor=None) -> RosterReport:
             if "reactivated" in changed:
                 report.reactivated += 1
 
-    # absent-from-file → deactivate (never delete; records preserved, FR-06)
+    # absent-from-file -> deactivate, never delete (records preserved)
     for reg, entry in existing.items():
         if reg not in seen and entry.is_active:
             entry.is_active = False
@@ -82,9 +82,9 @@ def import_roster(course, fileobj, *, actor=None) -> RosterReport:
 
 
 def claim_roster_entries(user):
-    """On signup (FR-33): claim every unclaimed roster entry for user.reg_no and
-    enroll the user in each course. Must run inside a transaction; caller did the
-    matching/validation already. Returns the list of courses joined."""
+    """Claim every unclaimed roster entry for user.reg_no and enroll the user
+    in each course. Run inside a transaction; the caller has already done the
+    matching and validation. Returns the list of courses joined."""
     from .models import Enrollment
 
     entries = RosterEntry.objects.select_for_update().filter(

@@ -28,7 +28,7 @@ class UserAdmin(BaseUserAdmin):
     ordering = ("username",)
 
 
-@admin.action(description="Force password reset at next login (FR-01/24)")
+@admin.action(description="Force password reset at next login")
 def force_password_reset(modeladmin, request, queryset):
     from core.auditing import audit
     count = 0
