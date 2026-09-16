@@ -37,7 +37,7 @@ class ViewTests(TestCase):
                              follow=True)
         self.assertContains(r, "Receipt")
         self.assertEqual(Submission.objects.filter(assignment=a, student=s).count(), 1)
-        self.assertContains(r, "checksum")
+        self.assertContains(r, "File ID")
 
     def test_after_grace_submit_refused_with_message(self):
         a = make_assignment(due=timezone.now() - timezone.timedelta(minutes=5))
@@ -128,3 +128,36 @@ class CoursePageAssignmentsTests(TestCase):
                              {"submission_file": upload(), "note": ""}, follow=True)
         self.assertContains(r, "already been marked")
         self.assertEqual(Submission.objects.filter(assignment=a, student=s).count(), 1)
+
+    def test_staff_deletes_assignment(self):
+        a, lect, s = seed()
+        submit_assignment(a, student=s, uploaded=upload())
+        self.client.force_login(lect)
+        r = self.client.post(reverse("assignments:delete", args=[a.course.id, a.id]), follow=True)
+        self.assertContains(r, "deleted")
+        self.assertEqual(self.client.get(
+            reverse("assignments:detail", args=[a.course.id, a.id])).status_code, 404)
+        r = self.client.get(reverse("courses:detail", args=[a.course.id]))
+        self.assertNotContains(r, a.title)
+
+    def test_student_cannot_delete(self):
+        a, lect, s = seed()
+        self.client.force_login(s)
+        self.client.post(reverse("assignments:delete", args=[a.course.id, a.id]))
+        a.refresh_from_db()
+        self.assertTrue(a.is_active)
+
+
+class SubmitButtonDefaultsTests(TestCase):
+    def test_new_assignments_default_to_pdf_only(self):
+        """Owner: assignments accept only PDF unless the lecturer adds more."""
+        from assignments.models import Assignment
+        a = make_assignment()
+        self.assertEqual(a.allowed_ext, "pdf")
+
+    def test_view_links_open_in_new_tab(self):
+        a, lect, s = seed()
+        submit_assignment(a, student=s, uploaded=upload())
+        self.client.force_login(s)
+        r = self.client.get(reverse("assignments:detail", args=[a.course.id, a.id]))
+        self.assertContains(r, 'target="_blank"')

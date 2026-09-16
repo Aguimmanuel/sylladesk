@@ -16,8 +16,8 @@ from courses.views import _course_or_404
 
 from .forms import AssignmentForm, GradeForm, SubmissionForm
 from .models import Assignment, Submission
-from .services import (deadline_with_grace, grade_submission, roster_status,
-                       submit_assignment, update_assignment)
+from .services import (deadline_with_grace, delete_assignment, grade_submission,
+                       roster_status, submit_assignment, update_assignment)
 
 logger = getLogger(__name__)
 
@@ -59,16 +59,24 @@ def edit(request, course_id, assignment_id):
         return redirect("courses:detail", course_id=course.id)
     form = AssignmentForm(request.POST or None, instance=a)
     if request.method == "POST" and form.is_valid():
-        try:
-            update_assignment(a, actor=request.user, data={
-                f: form.cleaned_data[f] for f in form.cleaned_data
-            })
-        except ValueError as e:
-            messages.error(request, str(e))
-            return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
-        messages.success(request, "Assignment updated.")
+        update_assignment(a, actor=request.user, data=dict(form.cleaned_data))
+        messages.success(request, "Assignment updated. The change is on the audit log.")
         return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
     return render(request, "assignments/edit.html", {"course": course, "assignment": a, "form": form})
+
+
+@login_required
+@require_POST
+def delete(request, course_id, assignment_id):
+    course = _course_or_404(course_id)
+    a = _assignment_or_404(course_id, assignment_id)
+    if not is_staff_of(request.user, course):
+        messages.error(request, "Only course staff can delete assignments.")
+        return redirect("courses:detail", course_id=course.id)
+    title = a.title
+    delete_assignment(a, actor=request.user)
+    messages.success(request, f"Assignment “{title}” deleted. Submissions are kept in the records.")
+    return redirect("courses:detail", course_id=course.id)
 
 
 @login_required
@@ -120,7 +128,7 @@ def submit(request, course_id, assignment_id):
         receipt = (f"Receipt — attempt {s.attempt_no} · "
                    f"{timezone.localtime(s.submitted_at):%d %b %Y, %H:%M} WAT · "
                    f"{s.file.original_name} · {s.file.size_bytes:,} bytes · "
-                   f"checksum {s.file.sha256[:12]}")
+                   f"File ID {s.file.sha256[:12]}")
         messages.success(request, receipt + (" — LATE" if s.is_late else ""))
     return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
 

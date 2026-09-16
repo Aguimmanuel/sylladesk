@@ -53,23 +53,23 @@ def create_assignment(course, *, actor, title, instructions, max_score, due_at, 
 
 
 def update_assignment(a, *, actor, data):
-    """Full edits until the deadline; once anything is submitted, only the
-    instructions may change (clarifications), and never past the deadline."""
-    now = timezone.now()
-    has_submissions = a.submissions.exists()
-    if now > a.due_at:
-        raise ValueError("The deadline has passed; the assignment is locked.")
-    if has_submissions:
-        allowed = {"instructions"}
-        unknown = set(data) - allowed
-        if unknown:
-            raise ValueError(
-                "A student has already submitted; only the instructions may be changed."
-            )
+    """The lecturer owns the assignment: any field, at any time, regardless
+    of submissions or deadlines. Previous values go to the audit log."""
+    old = {f: str(getattr(a, f)) for f in data}
     for field, value in data.items():
         setattr(a, field, value)
     a.save()
-    audit(actor=actor, action="assignment.update", obj=a, detail={"fields": sorted(data)})
+    audit(actor=actor, action="assignment.update", obj=a,
+          detail={"fields": sorted(data), "old": old})
+    return a
+
+
+def delete_assignment(a, *, actor):
+    """Soft delete: the assignment disappears from the course, while the row
+    and its submissions remain in the database and on the audit log."""
+    a.is_active = False
+    a.save(update_fields=["is_active"])
+    audit(actor=actor, action="assignment.delete", obj=a)
     return a
 
 

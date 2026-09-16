@@ -7,8 +7,8 @@ from courses.tests.helpers import make_course
 from core.models import AuditLog
 
 from ..models import Submission
-from ..services import (create_assignment, grade_submission, roster_status,
-                        submit_assignment, update_assignment)
+from ..services import (create_assignment, delete_assignment, grade_submission,
+                        roster_status, submit_assignment, update_assignment)
 from .helpers import (DOCX_BYTES, PDF_BYTES, enroll, make_assignment,
                       make_student, upload)
 
@@ -40,17 +40,34 @@ class EditTests(TestCase):
         a.refresh_from_db()
         self.assertEqual((a.title, a.max_score), ("Renamed", 40))
 
-    def test_after_first_submission_only_instructions_change(self):
+    def test_full_edit_allowed_after_submissions(self):
+        """The lecturer owns the assignment; submissions do not lock it."""
         a = make_assignment()
         s = make_student()
         enroll(a.course, s)
         submit_assignment(a, student=s, uploaded=upload())
-        with self.assertRaises(ValueError):
-            update_assignment(a, actor=a.created_by, data={"title": "Renamed"})
         update_assignment(a, actor=a.created_by,
-                          data={"instructions": "Clarified: also cite sources."})
+                          data={"title": "Renamed", "instructions": "Also cite sources."})
         a.refresh_from_db()
+        self.assertEqual(a.title, "Renamed")
         self.assertIn("cite sources", a.instructions)
+
+    def test_edit_allowed_after_deadline(self):
+        a = make_assignment(due=timezone.now() - timezone.timedelta(hours=1))
+        update_assignment(a, actor=a.created_by, data={"max_score": 40})
+        a.refresh_from_db()
+        self.assertEqual(a.max_score, 40)
+
+    def test_soft_delete_hides_assignment_keeps_rows(self):
+        a = make_assignment()
+        s = make_student()
+        enroll(a.course, s)
+        sub = submit_assignment(a, student=s, uploaded=upload())
+        delete_assignment(a, actor=a.created_by)
+        a.refresh_from_db()
+        self.assertFalse(a.is_active)
+        self.assertTrue(Submission.objects.filter(pk=sub.pk).exists())  # records kept
+        self.assertTrue(AuditLog.objects.filter(action="assignment.delete").exists())
 
 
 class SubmitTests(TestCase):

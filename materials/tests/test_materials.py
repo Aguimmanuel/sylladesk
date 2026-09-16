@@ -115,3 +115,10 @@ class MaterialDownloadTests(TestCase):
         self.assertIn("attachment", r["Content-Disposition"])
         c.force_login(outsider)
         self.assertEqual(c.get(reverse("materials:view", args=[self.course.id, m.id])).status_code, 404)
+
+    def test_staff_edits_material(self):
+        m = Material.objects.first()
+        self.client.post(reverse("materials:edit", args=[self.course.id, m.id]),
+                         {"title": "Renamed lecture", "week_no": "2"})
+        m.refresh_from_db()
+        self.assertEqual((m.title, m.week_no), ("Renamed lecture", 2))

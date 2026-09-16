@@ -14,7 +14,7 @@ class Assignment(models.Model):
     instructions = models.TextField(blank=True)
     max_score = models.PositiveIntegerField(default=20)
     due_at = models.DateTimeField()  # UTC
-    allowed_ext = models.CharField(max_length=100, default="pdf,doc,docx")
+    allowed_ext = models.CharField(max_length=100, default="pdf")
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="assignments_created"

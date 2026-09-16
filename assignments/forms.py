@@ -28,7 +28,7 @@ class AssignmentForm(forms.ModelForm):
 
     def clean_allowed_ext(self):
         exts = ",".join(e.strip().lower() for e in self.cleaned_data["allowed_ext"].split(",") if e.strip())
-        return exts or "pdf,doc,docx"
+        return exts or "pdf"
 
 
 class SubmissionForm(forms.Form):

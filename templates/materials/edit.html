@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Edit — {{ material.title }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'courses:detail' course.id %}" class="muted small">&#8592; {{ course.code }}</a></p>
+<div class="card center-card">
+  <h1>Edit material</h1>
+  <p class="muted small">To replace the file itself, delete this material and upload the new one.</p>
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {{ form.title.label_tag }} {{ form.title }} {{ form.title.errors }}
+    {{ form.week_no.label_tag }} {{ form.week_no }} {{ form.week_no.errors }}
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </form>
+</div>
+{% endblock %}

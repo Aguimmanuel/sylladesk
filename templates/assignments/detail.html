@@ -11,6 +11,10 @@
   </div>
   {% if is_staff %}
   <a href="{% url 'assignments:edit' course.id assignment.id %}" class="btn">Edit</a>
+  <form method="post" action="{% url 'assignments:delete' course.id assignment.id %}" class="inline-form"
+        onsubmit="return confirm('Delete this assignment? Submissions stay in the records.')">
+    {% csrf_token %}<button type="submit" class="btn btn-ghost">Delete</button>
+  </form>
   {% endif %}
 </div>
 {% if assignment.instructions %}<div class="card"><p>{{ assignment.instructions|linebreaksbr }}</p></div>{% endif %}
@@ -35,7 +39,7 @@
         <td>{% if r.latest.score is not None %}{{ r.latest.score }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td class="row-actions">
           {% if r.latest %}
-          <a class="btn" href="{% url 'assignments:submission_view' course.id assignment.id r.latest.id %}">View</a>
+          <a class="btn" href="{% url 'assignments:submission_view' course.id assignment.id r.latest.id %}" target="_blank" rel="noopener">View</a>
           <a class="btn btn-primary" href="{% url 'assignments:submission_download' course.id assignment.id r.latest.id %}">Download</a>
           {% endif %}
         </td>
@@ -85,9 +89,9 @@
         <td>{{ s.attempt_no }}</td>
         <td>{{ s.submitted_at|wat }}</td>
         <td>
-          <a href="{% url 'assignments:submission_view' course.id assignment.id s.id %}">View</a> ·
+          <a href="{% url 'assignments:submission_view' course.id assignment.id s.id %}" target="_blank" rel="noopener">View</a> ·
           <a href="{% url 'assignments:submission_download' course.id assignment.id s.id %}">Download</a>
-          <div class="muted small">{{ s.file.original_name }} · {{ s.file.size_bytes|size_label }} · checksum {{ s.file.sha256|slice:':12' }}</div>
+          <div class="muted small">{{ s.file.original_name }} · {{ s.file.size_bytes|size_label }} · File ID {{ s.file.sha256|slice:':12' }}</div>
         </td>
         <td>{% if s.is_late %}<span class="pill">LATE</span>{% else %}on time{% endif %}</td>
         <td>{% if s.score is not None %}{{ s.score }}{% if s.score_note %} <div class="muted small">{{ s.score_note }}</div>{% endif %}{% else %}<span class="muted">not graded</span>{% endif %}</td>

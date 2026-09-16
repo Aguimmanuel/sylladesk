@@ -12,7 +12,7 @@ from courses.access import user_role_in_course
 from courses.models import Course
 from courses.views import _course_or_404
 
-from .forms import MaterialForm
+from .forms import MaterialEditForm, MaterialForm
 from .models import Material
 from .services import create_material
 
@@ -71,6 +71,23 @@ def download(request, course_id, material_id):
     material, fh = _open_material(request, course_id, material_id)
     Material.objects.filter(pk=material.pk).update(download_count=F("download_count") + 1)
     return FileResponse(fh, as_attachment=True, filename=material.file.original_name)
+
+
+@login_required
+def edit(request, course_id, material_id):
+    course = _course_or_404(course_id)
+    material = _material_or_404(course_id, material_id)
+    if user_role_in_course(request.user, course) not in ("lecturer", "ta", "admin"):
+        messages.error(request, "Only the lecturer can edit materials.")
+        return redirect("courses:detail", course_id=course.id)
+    form = MaterialEditForm(request.POST or None, instance=material)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        audit(actor=request.user, action="material.update", obj=material)
+        messages.success(request, "Material updated.")
+        return redirect("courses:detail", course_id=course.id)
+    return render(request, "materials/edit.html",
+                  {"course": course, "material": material, "form": form})
 
 
 @login_required
