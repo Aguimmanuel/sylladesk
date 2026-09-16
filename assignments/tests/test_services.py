@@ -149,3 +149,13 @@ class RosterStatusTests(TestCase):
         self.assertEqual(rows[on_time.id]["state"], "submitted")
         self.assertEqual(rows[late.id]["state"], "late")
         self.assertEqual(rows[missing.id]["state"], "missing")
+
+    def test_resubmit_after_grading_refused(self):
+        a = make_assignment()
+        s = make_student()
+        enroll(a.course, s)
+        sub = submit_assignment(a, student=s, uploaded=upload())
+        grade_submission(sub, actor=a.created_by, score=18)
+        with self.assertRaises(ValueError):
+            submit_assignment(a, student=s, uploaded=upload(name="v2.pdf"))
+        self.assertEqual(Submission.objects.filter(assignment=a, student=s).count(), 1)

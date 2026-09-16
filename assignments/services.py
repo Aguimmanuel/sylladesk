@@ -81,6 +81,8 @@ def submit_assignment(a, *, student, uploaded, note=""):
     now = timezone.now()
     if now > deadline_with_grace(a):
         raise ValueError("The deadline has passed; submissions are closed.")
+    if a.submissions.filter(student=student, graded_at__isnull=False).exists():
+        raise ValueError("This work has already been marked; resubmission is closed.")
     if user_role_in_course(student, a.course) != "student":
         raise ValueError("Only enrolled students can submit.")
     ok, error = _validate_file(uploaded, a)

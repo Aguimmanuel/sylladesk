@@ -44,6 +44,7 @@
         <td><span class="pill">{{ m.file.size_bytes|size_label }}</span></td>
         <td>{{ m.download_count }}</td>
         <td class="row-actions">
+          <a class="btn" href="{% url 'materials:view' course.id m.id %}">View</a>
           <a class="btn btn-primary" href="{% url 'materials:download' course.id m.id %}">Download</a>
           {% if is_staff %}
           <form method="post" action="{% url 'materials:delete' course.id m.id %}" class="inline-form">{% csrf_token %}

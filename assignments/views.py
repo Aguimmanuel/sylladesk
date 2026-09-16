@@ -90,7 +90,9 @@ def detail(request, course_id, assignment_id):
     else:
         context["mine"] = mine
         context["form"] = SubmissionForm()
-        context["can_submit"] = (role == "student" and not closed)
+        already_graded = mine.filter(graded_at__isnull=False).exists()
+        context["already_graded"] = already_graded
+        context["can_submit"] = (role == "student" and not closed and not already_graded)
     return render(request, "assignments/detail.html", context)
 
 
@@ -123,14 +125,26 @@ def submit(request, course_id, assignment_id):
     return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
 
 
-@login_required
-def submission_download(request, course_id, assignment_id, submission_id):
+def _open_submission(request, course_id, assignment_id, submission_id):
+    """Shared gate for view/download: the owning student or course staff."""
     course = _course_or_404(course_id)
     a = _assignment_or_404(course_id, assignment_id)
     s = get_object_or_404(Submission, pk=submission_id, assignment=a)
     if not (is_staff_of(request.user, course) or s.student_id == request.user.id):
         raise Http404()
-    fh = get_storage().open(s.file)
+    return s, get_storage().open(s.file)
+
+
+@login_required
+def submission_view(request, course_id, assignment_id, submission_id):
+    """Open a submission in the browser instead of forcing a save."""
+    s, fh = _open_submission(request, course_id, assignment_id, submission_id)
+    return FileResponse(fh, filename=s.file.original_name)
+
+
+@login_required
+def submission_download(request, course_id, assignment_id, submission_id):
+    s, fh = _open_submission(request, course_id, assignment_id, submission_id)
     return FileResponse(fh, as_attachment=True, filename=s.file.original_name)
 
 

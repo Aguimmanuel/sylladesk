@@ -50,14 +50,26 @@ def upload(request, course_id):
     return redirect("courses:detail", course_id=course.id)
 
 
-@login_required
-def download(request, course_id, material_id):
+def _open_material(request, course_id, material_id):
+    """Shared gate for view/download: enrolled (any role) or 404."""
     course = _course_or_404(course_id)
     if user_role_in_course(request.user, course) is None:
         raise Http404()
     material = _material_or_404(course_id, material_id)
+    return material, get_storage().open(material.file)
+
+
+@login_required
+def view_file(request, course_id, material_id):
+    """Open in the browser; does not count as a download."""
+    material, fh = _open_material(request, course_id, material_id)
+    return FileResponse(fh, filename=material.file.original_name)
+
+
+@login_required
+def download(request, course_id, material_id):
+    material, fh = _open_material(request, course_id, material_id)
     Material.objects.filter(pk=material.pk).update(download_count=F("download_count") + 1)
-    fh = get_storage().open(material.file)
     return FileResponse(fh, as_attachment=True, filename=material.file.original_name)
 
 

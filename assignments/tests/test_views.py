@@ -5,7 +5,7 @@ from django.utils import timezone
 from courses.tests.helpers import make_course
 
 from ..models import Submission
-from ..services import submit_assignment
+from ..services import grade_submission, submit_assignment
 from .helpers import PDF_BYTES, enroll, make_assignment, make_student, upload
 
 
@@ -98,3 +98,33 @@ class CoursePageAssignmentsTests(TestCase):
         self.client.force_login(s)
         r = self.client.get(reverse("courses:detail", args=[a.course.id]))
         self.assertNotContains(r, "New assignment")
+
+    def test_submission_view_inline_with_permissions(self):
+        a, lect, s = seed()
+        sub = submit_assignment(a, student=s, uploaded=upload())
+        vurl = reverse("assignments:submission_view", args=[a.course.id, a.id, sub.id])
+        durl = reverse("assignments:submission_download", args=[a.course.id, a.id, sub.id])
+        self.client.force_login(s)
+        r = self.client.get(vurl)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("inline", r["Content-Disposition"])
+        self.assertIn("attachment", self.client.get(durl)["Content-Disposition"])
+        other = make_student(reg="MOUAU/PSB/26/060012")
+        enroll(a.course, other)
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(vurl).status_code, 404)
+        self.client.force_login(lect)
+        self.assertEqual(self.client.get(vurl).status_code, 200)
+
+    def test_graded_student_gets_no_submit_form(self):
+        a, lect, s = seed()
+        sub = submit_assignment(a, student=s, uploaded=upload())
+        grade_submission(sub, actor=lect, score=15)
+        self.client.force_login(s)
+        r = self.client.get(reverse("assignments:detail", args=[a.course.id, a.id]))
+        self.assertContains(r, "Resubmission is closed")
+        self.assertNotContains(r, "submission_file")
+        r = self.client.post(reverse("assignments:submit", args=[a.course.id, a.id]),
+                             {"submission_file": upload(), "note": ""}, follow=True)
+        self.assertContains(r, "already been marked")
+        self.assertEqual(Submission.objects.filter(assignment=a, student=s).count(), 1)

@@ -6,6 +6,7 @@ from accounts.tests.helpers import make_user
 from courses.models import Enrollment
 from courses.tests.helpers import make_course
 from materials.models import Material
+from materials.services import create_material
 
 PDF = b"%PDF-1.4 fake pdf content"
 
@@ -93,3 +94,24 @@ class MaterialDownloadTests(TestCase):
         r = self.client.get(reverse("courses:detail", args=[self.course.id]))
         self.assertContains(
             r, 'action="' + reverse("materials:upload", args=[self.course.id]) + '"')
+
+    def test_view_inline_and_download_attachment(self):
+        from django.test import Client
+        from accounts.tests.helpers import make_user
+        from courses.models import Enrollment
+        m = create_material(course=self.course, title="Ch 1", week_no=1,
+                            uploaded=SimpleUploadedFile("ch1.pdf", PDF,
+                                                        content_type="application/pdf"),
+                            actor=self.course.lecturer).material
+        student = make_user(username="MOUAU/PSB/26/091001", reg_no="MOUAU/PSB/26/091001")
+        Enrollment.objects.create(course=self.course, user=student, role_in_course="student")
+        outsider = make_user(username="MOUAU/PSB/26/091002", reg_no="MOUAU/PSB/26/091002")
+        c = Client()
+        c.force_login(student)
+        r = c.get(reverse("materials:view", args=[self.course.id, m.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("inline", r["Content-Disposition"])
+        r = c.get(reverse("materials:download", args=[self.course.id, m.id]))
+        self.assertIn("attachment", r["Content-Disposition"])
+        c.force_login(outsider)
+        self.assertEqual(c.get(reverse("materials:view", args=[self.course.id, m.id])).status_code, 404)
