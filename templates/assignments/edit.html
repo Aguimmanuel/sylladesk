@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Edit — {{ assignment.title }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'assignments:detail' course.id assignment.id %}" class="muted small">&#8592; {{ assignment.title }}</a></p>
+<div class="card center-card">
+  <h1>Edit assignment</h1>
+  {% if assignment.submissions.exists %}
+  <p class="msg msg-error">A student has already submitted. Only the instructions can be changed.</p>
+  {% endif %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {{ form.title.label_tag }} {{ form.title }} {{ form.title.errors }}
+    {{ form.instructions.label_tag }} {{ form.instructions }} {{ form.instructions.errors }}
+    {{ form.max_score.label_tag }} {{ form.max_score }} {{ form.max_score.errors }}
+    {{ form.due_at.label_tag }} {{ form.due_at }} {{ form.due_at.errors }}
+    {{ form.allowed_ext.label_tag }} {{ form.allowed_ext }} {{ form.allowed_ext.errors }}
+    <button type="submit" class="btn btn-primary">Save changes</button>
+  </form>
+</div>
+{% endblock %}

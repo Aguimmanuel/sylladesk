@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}{{ assignment.title }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'courses:detail' course.id %}" class="muted small">&#8592; {{ course.code }}</a></p>
+<div class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted small">Due {{ assignment.due_at|wat }} · max {{ assignment.max_score }} points
+      · accepted: {{ assignment.allowed_ext|upper }}</p>
+  </div>
+  {% if is_staff %}
+  <a href="{% url 'assignments:edit' course.id assignment.id %}" class="btn">Edit</a>
+  {% endif %}
+</div>
+{% if assignment.instructions %}<div class="card"><p>{{ assignment.instructions|linebreaksbr }}</p></div>{% endif %}
+
+{% if is_staff %}
+<h2>Submissions</h2>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Student</th><th>Attempts</th><th>Latest</th><th>Score</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.student.full_name }}<div class="muted small">{{ r.student.reg_no }}</div></td>
+        <td>{{ r.attempts|length }}</td>
+        <td>
+          {% if r.latest %}
+            {% if r.latest.is_late %}<span class="pill">LATE</span> {% endif %}
+            {{ r.latest.file.original_name }}
+            <div class="muted small">{{ r.latest.submitted_at|wat }}</div>
+          {% else %}<span class="muted">missing</span>{% endif %}
+        </td>
+        <td>{% if r.latest.score is not None %}{{ r.latest.score }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="row-actions">
+          {% if r.latest %}
+          <a class="btn btn-primary" href="{% url 'assignments:submission_download' course.id assignment.id r.latest.id %}">File</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% if r.latest %}
+      <tr>
+        <td colspan="5">
+          <form method="post" action="{% url 'assignments:grade' course.id assignment.id r.latest.id %}" class="row2">
+            {% csrf_token %}
+            <input type="number" name="score" min="0" max="{{ assignment.max_score }}"
+                   value="{{ r.latest.score|default_if_none:'' }}" placeholder="score /{{ assignment.max_score }}">
+            <input type="text" name="score_note" value="{{ r.latest.score_note }}" placeholder="note (optional)">
+            <button type="submit" class="btn">Save score</button>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<h2>{{ can_submit|yesno:"Submit your work,Your submissions" }}</h2>
+{% if can_submit %}
+<div class="card">
+  {% if closed %}<p class="muted">The deadline has passed; submissions are closed.</p>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="stack"
+        action="{% url 'assignments:submit' course.id assignment.id %}">
+    {% csrf_token %}
+    {{ form.submission_file.label_tag }} {{ form.submission_file }}
+    {{ form.note.label_tag }} {{ form.note }}
+    <button type="submit" class="btn btn-primary" {% if closed %}disabled{% endif %}>Submit</button>
+  </form>
+</div>
+{% endif %}
+<h2>Attempt history</h2>
+<div class="card">
+  {% if mine %}
+  <table class="table">
+    <thead><tr><th>#</th><th>When</th><th>File</th><th>Status</th><th>Score</th></tr></thead>
+    <tbody>
+    {% for s in mine %}
+      <tr>
+        <td>{{ s.attempt_no }}</td>
+        <td>{{ s.submitted_at|wat }}</td>
+        <td><a href="{% url 'assignments:submission_download' course.id assignment.id s.id %}">{{ s.file.original_name }}</a>
+          <div class="muted small">{{ s.file.size_bytes|size_label }} · checksum {{ s.file.sha256|slice:':12' }}</div></td>
+        <td>{% if s.is_late %}<span class="pill">LATE</span>{% else %}on time{% endif %}</td>
+        <td>{% if s.score is not None %}{{ s.score }}{% if s.score_note %} <div class="muted small">{{ s.score_note }}</div>{% endif %}{% else %}<span class="muted">not graded</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Nothing submitted yet.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

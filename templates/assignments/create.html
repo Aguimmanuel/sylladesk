@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}New assignment{% endblock %}
+{% block content %}
+<p><a href="{% url 'courses:detail' course.id %}" class="muted small">&#8592; {{ course.code }}</a></p>
+<div class="card center-card">
+  <h1>New assignment</h1>
+  {% if form.non_field_errors %}<p class="msg msg-error">{{ form.non_field_errors.0 }}</p>{% endif %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {{ form.title.label_tag }} {{ form.title }} {{ form.title.errors }}
+    {{ form.instructions.label_tag }} {{ form.instructions }} {{ form.instructions.errors }}
+    {{ form.max_score.label_tag }} {{ form.max_score }} {{ form.max_score.errors }}
+    {{ form.due_at.label_tag }} {{ form.due_at }} {{ form.due_at.errors }}
+    <p class="muted small">Due time is Nigeria time (WAT). Students can still submit for 60 seconds after it.</p>
+    {{ form.allowed_ext.label_tag }} {{ form.allowed_ext }} {{ form.allowed_ext.errors }}
+    <button type="submit" class="btn btn-primary">Post assignment</button>
+  </form>
+</div>
+{% endblock %}
