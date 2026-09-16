@@ -40,3 +40,20 @@ def wat(value) -> str:
         return ""
     local = timezone.localtime(value)
     return f"{local:%d %b %Y, %H:%M} WAT"
+
+
+@register.filter
+def get_item(mapping, key):
+    """Dictionary lookup in templates: answers|get_item:question.id"""
+    return mapping.get(key)
+
+
+@register.filter
+def get_attr(obj, name):
+    return getattr(obj, name, "")
+
+
+@register.filter
+def letter(obj, index):
+    """0 -> 'A', 1 -> 'B' ... for MCQ option labels."""
+    return chr(65 + int(index))

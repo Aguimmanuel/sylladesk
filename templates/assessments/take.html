@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+{% load lms_extras %}
+{% block title %}{{ test.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ test.title }}</h1>
+  <p class="muted small">Answers save as you go. The test submits itself when time runs out.</p></div>
+  <div><span id="countdown" class="pill" data-expires="{{ expires_epoch }}">--:--</span></div>
+</div>
+<form method="post" action="{% url 'assessments:submit_test' test.join_code %}" id="quiz-form">
+  {% csrf_token %}
+  {% for q in questions %}
+  <div class="card" style="margin-bottom:1rem">
+    <strong>{{ forloop.counter }}.</strong> {{ q.text }}
+    {% if q.kind == "short" %}
+      <textarea name="q_{{ q.id }}" data-q="{{ q.id }}" rows="3"
+        placeholder="Type your answer">{% if answers %}{{ answers|get_item:q.id|get_attr:"text" }}{% endif %}</textarea>
+    {% elif q.kind == "mcq" %}
+      {% for opt in q.option_list %}
+      {% with letter=q|letter:forloop.counter0 a=answers|get_item:q.id %}
+      <label style="display:block">
+        <input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="{{ letter }}"
+          {% if a and a.choice == letter %}checked{% endif %}>
+        {{ letter }}. {{ opt }}
+      </label>
+      {% endwith %}
+      {% endfor %}
+    {% else %}
+      {% with a=answers|get_item:q.id %}
+      <label style="display:block"><input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="TRUE"
+        {% if a and a.choice == "TRUE" %}checked{% endif %}> True</label>
+      <label style="display:block"><input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="FALSE"
+        {% if a and a.choice == "FALSE" %}checked{% endif %}> False</label>
+      {% endwith %}
+    {% endif %}
+  </div>
+  {% endfor %}
+  <button type="submit" class="btn btn-primary">Submit test</button>
+</form>
+<script src="{% static 'js/quiz.js' %}" defer></script>
+{% endblock %}

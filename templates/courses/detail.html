@@ -62,6 +62,47 @@
   <p class="muted">No materials yet.</p>
 {% endif %}
 
+{% if tests or is_staff %}
+<div class="page-head">
+  <h2>Tests</h2>
+  {% if is_staff %}
+  <a href="{% url 'assessments:create' course.id %}" class="btn btn-primary">+ New test</a>
+  {% endif %}
+</div>
+{% if tests %}
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Title</th><th>Window</th>{% if is_staff %}<th>Code</th><th></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for test in tests %}
+      <tr>
+        <td>{{ test.title }}</td>
+        <td class="muted small">{{ test.open_at|wat }} – {{ test.close_at|wat }}</td>
+        {% if is_staff %}
+        <td><strong>{{ test.join_code }}</strong></td>
+        <td class="row-actions"><a class="btn" href="{% url 'assessments:detail' course.id test.id %}">Open</a></td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif is_staff %}
+<div class="card"><p class="muted">No tests yet.</p></div>
+{% endif %}
+{% endif %}
+
+{% if not is_staff and user.global_role == "student" %}
+<div class="card" style="margin-top:1rem">
+  <strong>Join a test</strong>
+  <form method="post" action="{% url 'assessments:join_box' %}" class="row2" style="margin-top:.5rem">
+    {% csrf_token %}
+    <input type="text" name="code" maxlength="6" minlength="6" placeholder="6-letter code" style="text-transform:uppercase" required>
+    <button type="submit" class="btn btn-primary">Join</button>
+  </form>
+</div>
+{% endif %}
+
 {% if assignments or is_staff %}
 <div class="page-head">
   <h2>Assignments</h2>

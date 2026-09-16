@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}{{ test.title }}{% endblock %}
+{% block content %}
+<div class="card center-card">
+  <h1>{{ test.title }}</h1>
+  <p class="muted">{{ test.course.code }} · opens {{ test.open_at|wat }} · closes {{ test.close_at|wat }}</p>
+
+  {% if state == "upcoming" %}
+    <p>This test has not opened yet. Come back at the opening time.</p>
+  {% elif state == "open" %}
+    <p><a class="btn btn-primary" href="{% url 'assessments:take' test.join_code %}">Start the test</a></p>
+    <p class="muted small">Your timer starts the moment you start and submits itself at zero.</p>
+  {% elif state == "in_progress" %}
+    <p class="msg msg-error">Your test is running. Time is ticking.</p>
+    <p><a class="btn btn-primary" href="{% url 'assessments:take' test.join_code %}">Continue</a></p>
+  {% elif state == "submitted" %}
+    <p>Submitted. Your answers are in.</p>
+  {% elif state == "closed" %}
+    <p class="muted">The test is closed.</p>
+  {% elif state == "released" %}
+    {% if attempt %}
+      <p>Your score: <strong>{{ score }} / {{ test.max_score }}</strong></p>
+      {% if test.allow_review %}
+      <p class="muted small">Ask your lecturer for the question breakdown.</p>
+      {% endif %}
+    {% else %}
+      <p class="muted">No test score — you did not participate.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

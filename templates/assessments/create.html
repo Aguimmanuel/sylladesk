@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}New test{% endblock %}
+{% block content %}
+<p><a href="{% url 'courses:detail' course.id %}" class="muted small">&#8592; {{ course.code }}</a></p>
+<div class="card center-card">
+  <h1>New test</h1>
+  {% if form.non_field_errors %}<p class="msg msg-error">{{ form.non_field_errors.0 }}</p>{% endif %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    {{ form.title.label_tag }} {{ form.title }} {{ form.title.errors }}
+    {{ form.open_at.label_tag }} {{ form.open_at }} {{ form.open_at.errors }}
+    {{ form.close_at.label_tag }} {{ form.close_at }} {{ form.close_at.errors }}
+    <p class="muted small">Students can start only between those two times. Nigeria time (WAT).</p>
+    {{ form.n_to_answer.label_tag }} {{ form.n_to_answer }} {{ form.n_to_answer.errors }}
+    <p class="muted small">Each student answers this many questions, drawn at random from the pool you add next.</p>
+    {{ form.points_per_question.label_tag }} {{ form.points_per_question }} {{ form.points_per_question.errors }}
+    {{ form.allow_review.label_tag }} {{ form.allow_review }}
+    <button type="submit" class="btn btn-primary">Create test</button>
+  </form>
+</div>
+{% endblock %}

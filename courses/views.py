@@ -87,6 +87,7 @@ def detail(request, course_id):
     from materials.models import Material
     materials = Material.objects.filter(course=course, is_deleted=False).order_by("week_no", "title")
     assignments = course.assignments.filter(is_active=True)
+    tests = course.tests.filter(is_active=True)
     roster = RosterEntry.objects.filter(course=course).select_related("claimed_by") if staff else None
     students = removed_students = None
     if staff:
@@ -96,7 +97,7 @@ def detail(request, course_id):
                             .select_related("user").order_by("user__full_name"))
     return render(request, "courses/detail.html", {
         "course": course, "role": role, "materials": materials, "roster": roster,
-        "assignments": assignments,
+        "assignments": assignments, "tests": tests,
         "is_staff": staff, "mform": MaterialForm() if staff else None,
         "students": students, "removed_students": removed_students,
     })
