@@ -54,6 +54,26 @@
   {% endif %}
 </div>
 
+{% if locked %}
+<div class="card"><p class="muted">Questions are locked while the test runs.</p></div>
+{% else %}
+<h2>Add a question</h2>
+<div class="card">
+  <form method="post" action="{% url 'assessments:add_question' course.id test.id %}" class="stack">
+    {% csrf_token %}
+    {{ qform.kind.label_tag }} {{ qform.kind }}
+    {{ qform.text.label_tag }} {{ qform.text }}
+    {{ qform.options.label_tag }} {{ qform.options }}
+    <p class="muted small">{{ qform.options.help_text }}</p>
+    {{ qform.answer_key.label_tag }} {{ qform.answer_key }}
+    <p class="muted small">{{ qform.answer_key.help_text }}</p>
+    {{ qform.accepted_answers.label_tag }} {{ qform.accepted_answers }}
+    <p class="muted small">{{ qform.accepted_answers.help_text }}</p>
+    <button type="submit" class="btn btn-primary">Add question</button>
+  </form>
+</div>
+{% endif %}
+
 <h2>Questions ({{ questions|length }})</h2>
 <div class="card">
   {% for q in questions %}
@@ -76,26 +96,6 @@
   <p class="muted">No questions yet. Add questions to each section, then press Start.</p>
   {% endfor %}
 </div>
-
-{% if locked %}
-<div class="card"><p class="muted">Questions are locked while the test runs.</p></div>
-{% else %}
-<h2>Add a question</h2>
-<div class="card">
-  <form method="post" action="{% url 'assessments:add_question' course.id test.id %}" class="stack">
-    {% csrf_token %}
-    {{ qform.kind.label_tag }} {{ qform.kind }}
-    {{ qform.text.label_tag }} {{ qform.text }}
-    {{ qform.options.label_tag }} {{ qform.options }}
-    <p class="muted small">{{ qform.options.help_text }}</p>
-    {{ qform.answer_key.label_tag }} {{ qform.answer_key }}
-    <p class="muted small">{{ qform.answer_key.help_text }}</p>
-    {{ qform.accepted_answers.label_tag }} {{ qform.accepted_answers }}
-    <p class="muted small">{{ qform.accepted_answers.help_text }}</p>
-    <button type="submit" class="btn btn-primary">Add question</button>
-  </form>
-</div>
-{% endif %}
 
 <h2>Attempts</h2>
 <div class="card">
