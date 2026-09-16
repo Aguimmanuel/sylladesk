@@ -11,9 +11,7 @@ from courses.views import _course_or_404
 
 from .forms import JoinForm, QuestionForm, TestForm
 from .models import Answer, Attempt, Question, Test
-from .services import (finalize, join_state, regenerate_join_code, release_results,
-                       save_answer, start_attempt, submit, create_test, add_question,
-                       delete_question)
+from . import services
 
 
 def _test_or_404(course_id, test_id):
@@ -33,7 +31,7 @@ def create(request, course_id):
     form = TestForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         try:
-            t = create_test(
+            t = services.create_test(
                 course, actor=request.user, title=form.cleaned_data["title"],
                 open_at=form.cleaned_data["open_at"], close_at=form.cleaned_data["close_at"],
                 n_to_answer=form.cleaned_data["n_to_answer"],
@@ -72,7 +70,7 @@ def add_question(request, course_id, test_id):
     form = QuestionForm(request.POST)
     if form.is_valid():
         try:
-            add_question(t, actor=request.user, kind=form.cleaned_data["kind"],
+            services.add_question(t, actor=request.user, kind=form.cleaned_data["kind"],
                          text=form.cleaned_data["text"], options=form.cleaned_data["options"],
                          answer_key=form.cleaned_data["answer_key"],
                          accepted_answers=form.cleaned_data["accepted_answers"])
@@ -91,7 +89,7 @@ def delete_question(request, course_id, test_id, question_id):
         return redirect("courses:detail", course_id=course.id)
     q = get_object_or_404(Question, pk=question_id, test=t)
     try:
-        delete_question(q, actor=request.user)
+        services.delete_question(q, actor=request.user)
         messages.success(request, "Question removed.")
     except ValueError as e:
         messages.error(request, str(e))
@@ -105,7 +103,7 @@ def regenerate(request, course_id, test_id):
     t = _test_or_404(course_id, test_id)
     if not is_staff_of(request.user, course):
         return redirect("courses:detail", course_id=course.id)
-    regenerate_join_code(t, actor=request.user)
+    services.regenerate_join_code(t, actor=request.user)
     messages.success(request, f"New join code: {t.join_code}. The old code no longer works.")
     return redirect("assessments:detail", course_id=course.id, test_id=t.id)
 
@@ -118,7 +116,7 @@ def release(request, course_id, test_id):
     if not is_staff_of(request.user, course):
         return redirect("courses:detail", course_id=course.id)
     try:
-        release_results(t, actor=request.user)
+        services.release_results(t, actor=request.user)
     except ValueError as e:
         messages.error(request, str(e))
     else:
@@ -143,9 +141,9 @@ def join(request, code):
     if role is None:
         messages.error(request, "That code is for students enrolled in the course.")
         return redirect("courses:list")
-    state, attempt = join_state(t, student=request.user)
+    state, attempt = services.join_state(t, student=request.user)
     if attempt and state != "released":
-        finalize(attempt)
+        services.finalize(attempt)
     score = attempt.score() if (attempt and t.results_released_at) else None
     return render(request, "assessments/join.html", {
         "test": t, "state": state, "attempt": attempt, "score": score,
@@ -156,17 +154,17 @@ def join(request, code):
 @login_required
 def take(request, code):
     t = _test_by_code(code)
-    state, attempt = join_state(t, student=request.user)
+    state, attempt = services.join_state(t, student=request.user)
     if state == "upcoming" or state == "closed":
         return redirect("assessments:join", code=code)
     if not attempt:
         try:
-            attempt = start_attempt(t, student=request.user)
+            attempt = services.start_attempt(t, student=request.user)
         except ValueError as e:
             messages.error(request, str(e))
             return redirect("assessments:join", code=code)
     else:
-        finalize(attempt)
+        services.finalize(attempt)
         attempt.refresh_from_db()
     if attempt.submitted_at:
         return redirect("assessments:join", code=code)
@@ -186,7 +184,7 @@ def save(request, code):
     if not attempt:
         raise Http404()
     try:
-        save_answer(attempt, question_id=request.POST.get("question"),
+        services.save_answer(attempt, question_id=request.POST.get("question"),
                     choice=request.POST.get("choice", ""),
                     text=request.POST.get("text", ""))
     except ValueError as e:
@@ -208,8 +206,8 @@ def submit_test(request, code):
     if not attempt:
         raise Http404()
     try:
-        submit(attempt)
+        services.submit(attempt)
     except ValueError as e:
         messages.error(request, str(e))
-        finalize(attempt)
+        services.finalize(attempt)
     return redirect("assessments:join", code=code)

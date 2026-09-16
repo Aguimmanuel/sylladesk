@@ -56,3 +56,37 @@ class JoinViewTests(TestCase):
         self.client.force_login(self.s)
         r = self.client.get(reverse("assessments:join", args=["ZZZZZZ"]))
         self.assertEqual(r.status_code, 404)
+
+
+class AddQuestionViewTests(TestCase):
+    def test_add_mcq_question_via_form(self):
+        """Owner hit a 500 posting Q1 exactly like this on the live site."""
+        t = make_test(open_in=-1)
+        lect = t.created_by
+        self.client.force_login(lect)
+        r = self.client.post(reverse("assessments:add_question", args=[t.course_id, t.id]), {
+            "kind": "mcq",
+            "text": "What is the output of print(2 + 3 * 4)?",
+            "options": "20\n14\n24\n10",
+            "answer_key": "B",
+            "accepted_answers": "",
+        }, follow=True)
+        self.assertContains(r, "Question added.")
+        self.assertEqual(t.questions.count(), 1)
+
+    def test_detail_page_renders_for_staff(self):
+        t = make_test(open_in=-1)
+        self.client.force_login(t.created_by)
+        r = self.client.get(reverse("assessments:detail", args=[t.course_id, t.id]))
+        self.assertContains(r, "Add a question")
+
+    def test_delete_question_via_form(self):
+        t = make_test(open_in=-1, n=1)  # pool floor is 1; two questions means one is removable
+        add_mcq(t)
+        add_mcq(t, text="Spare", key="A", options="x\ny")
+        self.client.force_login(t.created_by)
+        q = t.questions.first()
+        r = self.client.post(reverse("assessments:delete_question",
+                                     args=[t.course_id, t.id, q.id]), follow=True)
+        self.assertContains(r, "removed")
+        self.assertEqual(t.questions.count(), 1)
