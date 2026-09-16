@@ -24,20 +24,21 @@ class ViewTests(TestCase):
             "title": "New Work", "instructions": "Read chapter 4",
             "max_score": "15",
             "due_at": (timezone.now() + timezone.timedelta(days=4)).strftime("%Y-%m-%dT%H:%M"),
-            "allowed_ext": "pdf"})
-        self.assertEqual(Submission.objects.filter(assignment__title="New Work").count(), 0)
-        a0.refresh_from_db()
+            "allowed_ext": "pdf", "confirmed": "1"}, follow=True)
+        self.assertContains(r, "posted")
         self.assertTrue(a0.course.assignments.filter(title="New Work").exists())
 
-    def test_student_submits_and_gets_receipt_flash(self):
+    def test_student_submits_and_gets_confirmation(self):
         a, lect, s = seed()
         self.client.force_login(s)
         r = self.client.post(reverse("assignments:submit", args=[a.course.id, a.id]),
                              {"submission_file": upload(), "note": ""},
                              follow=True)
-        self.assertContains(r, "Receipt")
+        self.assertContains(r, "Uploaded.")
+        self.assertNotContains(r, "File ID")
+        self.assertNotContains(r, "Receipt")
+        self.assertContains(r, "Submitted")
         self.assertEqual(Submission.objects.filter(assignment=a, student=s).count(), 1)
-        self.assertContains(r, "File ID")
 
     def test_after_grace_submit_refused_with_message(self):
         a = make_assignment(due=timezone.now() - timezone.timedelta(minutes=5))
@@ -161,3 +162,30 @@ class SubmitButtonDefaultsTests(TestCase):
         self.client.force_login(s)
         r = self.client.get(reverse("assignments:detail", args=[a.course.id, a.id]))
         self.assertContains(r, 'target="_blank"')
+
+class CreatePreviewTests(TestCase):
+    def test_create_previews_before_posting(self):
+        """Step 1 renders the student's view and creates nothing; step 2 posts."""
+        a0, lect, _ = seed()
+        url = reverse("assignments:create", args=[a0.course.id])
+        data = {
+            "title": "Osmosis Practical", "instructions": "Refer to chapter 5",
+            "max_score": "10",
+            "due_at": (timezone.now() + timezone.timedelta(days=5)).strftime("%Y-%m-%dT%H:%M"),
+            "allowed_ext": "pdf",
+        }
+        self.client.force_login(lect)
+        r = self.client.post(url, data)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "This is what students will see")
+        self.assertContains(r, "Osmosis Practical")
+        self.assertFalse(a0.course.assignments.filter(title="Osmosis Practical").exists())
+        r = self.client.post(url, {**data, "confirmed": "1"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(a0.course.assignments.filter(title="Osmosis Practical").exists())
+
+    def test_preview_button_label(self):
+        a0, lect, _ = seed()
+        self.client.force_login(lect)
+        r = self.client.get(reverse("assignments:create", args=[a0.course.id]))
+        self.assertContains(r, ">Preview</button>")

@@ -36,17 +36,17 @@ def create(request, course_id):
         return redirect("courses:detail", course_id=course.id)
     form = AssignmentForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        try:
-            a = form.save(commit=False)
-            a.course = course
-            a.created_by = request.user
-            a.save()
-        except ValueError as e:
-            form.add_error(None, str(e))
-        else:
-            audit(actor=request.user, action="assignment.create", obj=a)
-            messages.success(request, f"Assignment “{a.title}” posted.")
-            return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
+        if not request.POST.get("confirmed"):
+            # step 1: show the lecturer exactly what students will see
+            return render(request, "assignments/create.html",
+                          {"course": course, "form": form, "preview": True})
+        a = form.save(commit=False)
+        a.course = course
+        a.created_by = request.user
+        a.save()
+        audit(actor=request.user, action="assignment.create", obj=a)
+        messages.success(request, f"Assignment “{a.title}” posted.")
+        return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
     return render(request, "assignments/create.html", {"course": course, "form": form})
 
 
@@ -125,11 +125,7 @@ def submit(request, course_id, assignment_id):
     except ValueError as e:
         messages.error(request, str(e))
     else:
-        receipt = (f"Receipt — attempt {s.attempt_no} · "
-                   f"{timezone.localtime(s.submitted_at):%d %b %Y, %H:%M} WAT · "
-                   f"{s.file.original_name} · {s.file.size_bytes:,} bytes · "
-                   f"File ID {s.file.sha256[:12]}")
-        messages.success(request, receipt + (" — LATE" if s.is_late else ""))
+        messages.success(request, "Uploaded." + (" Marked late." if s.is_late else ""))
     return redirect("assignments:detail", course_id=course.id, assignment_id=a.id)
 
 

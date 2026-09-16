@@ -91,9 +91,9 @@
         <td>
           <a href="{% url 'assignments:submission_view' course.id assignment.id s.id %}" target="_blank" rel="noopener">View</a> ·
           <a href="{% url 'assignments:submission_download' course.id assignment.id s.id %}">Download</a>
-          <div class="muted small">{{ s.file.original_name }} · {{ s.file.size_bytes|size_label }} · File ID {{ s.file.sha256|slice:':12' }}</div>
+          <div class="muted small">{{ s.file.original_name }} · {{ s.file.size_bytes|size_label }}</div>
         </td>
-        <td>{% if s.is_late %}<span class="pill">LATE</span>{% else %}on time{% endif %}</td>
+        <td>{% if s.is_late %}<span class="pill">LATE</span>{% else %}Submitted{% endif %}</td>
         <td>{% if s.score is not None %}{{ s.score }}{% if s.score_note %} <div class="muted small">{{ s.score_note }}</div>{% endif %}{% else %}<span class="muted">not graded</span>{% endif %}</td>
       </tr>
     {% endfor %}
