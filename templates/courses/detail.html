@@ -60,8 +60,14 @@
   <p class="muted">No materials yet.</p>
 {% endif %}
 
+{% if assignments or is_staff %}
+<div class="page-head">
+  <h2>Assignments</h2>
+  {% if is_staff %}
+  <a href="{% url 'assignments:create' course.id %}" class="btn btn-primary">+ New assignment</a>
+  {% endif %}
+</div>
 {% if assignments %}
-<h2>Assignments</h2>
 <div class="card">
   <table class="table">
     <thead><tr><th>Title</th><th>Due</th><th></th></tr></thead>
@@ -77,8 +83,8 @@
   </table>
 </div>
 {% elif is_staff %}
-<h2>Assignments</h2>
 <div class="card"><p class="muted">No assignments posted yet.</p></div>
+{% endif %}
 {% endif %}
 
 {% if is_staff %}

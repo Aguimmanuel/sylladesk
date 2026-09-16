@@ -83,3 +83,18 @@ class ViewTests(TestCase):
         r = self.client.get(reverse("assignments:detail", args=[a.course.id, a.id]))
         self.assertContains(r, "LATE")
         self.assertContains(r, "missing")
+
+
+class CoursePageAssignmentsTests(TestCase):
+    def test_staff_sees_new_assignment_button(self):
+        a, lect, _ = seed()
+        self.client.force_login(lect)
+        r = self.client.get(reverse("courses:detail", args=[a.course.id]))
+        self.assertContains(r, "New assignment")
+        self.assertContains(r, reverse("assignments:create", args=[a.course.id]))
+
+    def test_student_sees_assignments_but_no_button(self):
+        a, lect, s = seed()
+        self.client.force_login(s)
+        r = self.client.get(reverse("courses:detail", args=[a.course.id]))
+        self.assertNotContains(r, "New assignment")
