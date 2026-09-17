@@ -31,6 +31,12 @@ input {
   width: 100%; padding: .55rem .7rem; border-radius: 8px;
   border: 1px solid var(--border); background: var(--bg); color: var(--text);
 }
+/* choice circles are not text boxes: undo the input skin */
+input[type="radio"], input[type="checkbox"] {
+  width: 1.05rem; height: 1.05rem; min-height: 0; flex: 0 0 auto;
+  padding: 0; margin: 0; border: 0; background: none;
+  accent-color: var(--primary);
+}
 input:focus-visible, button:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
@@ -84,7 +90,11 @@ input:focus-visible, button:focus-visible, a:focus-visible {
 .nav-link:hover { color: var(--primary); }
 h2 { font-size: 1.1rem; margin: 1.4rem 0 .6rem; }
 
-/* engine: aligned choice rows and the growing answer box */
-#id_kind label, .option-row { display: flex; align-items: center; gap: .5rem; }
-#id_kind > div, .option-row { margin: .25rem 0; }
+/* engine: choice rows and the growing answer box */
+#id_kind label, .option-row {
+  display: flex; align-items: baseline; gap: .55rem;
+  font-weight: 400;
+}
+#id_kind > div, .option-row { margin: 0; padding: .35rem 0; }
+.option-row span { flex: 1; }
 textarea.answer-text { width: 100%; margin-top: .4rem; }
