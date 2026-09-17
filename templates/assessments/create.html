@@ -26,7 +26,6 @@
     <p class="muted small">Each section runs on its own timer; the defaults are 20, 20 and 60 seconds.</p>
 
     {{ form.points_per_question.label_tag }} {{ form.points_per_question }} {{ form.points_per_question.errors }}
-    {{ form.allow_review.label_tag }} {{ form.allow_review }}
     <button type="submit" class="btn btn-primary">{% if editing %}Save settings{% else %}Create test{% endif %}</button>
   </form>
 </div>

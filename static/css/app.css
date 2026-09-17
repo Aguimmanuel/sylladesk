@@ -83,3 +83,8 @@ input:focus-visible, button:focus-visible, a:focus-visible {
 .nav-link { color: var(--text); text-decoration: none; font-size: .95rem; }
 .nav-link:hover { color: var(--primary); }
 h2 { font-size: 1.1rem; margin: 1.4rem 0 .6rem; }
+
+/* engine: aligned choice rows and the growing answer box */
+#id_kind label, .option-row { display: flex; align-items: center; gap: .5rem; }
+#id_kind > div, .option-row { margin: .25rem 0; }
+textarea.answer-text { width: 100%; margin-top: .4rem; }

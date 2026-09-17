@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}{{ attempt.student.full_name }} · {{ test.title }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'assessments:detail' course.id test.id %}" class="muted small">&#8592; {{ test.title }}</a></p>
+<div class="page-head">
+  <div>
+    <h1>{{ attempt.student.full_name }}</h1>
+    <p class="muted small">{{ attempt.student.username }} · started {{ attempt.started_at|wat }}
+      · {% if attempt.submitted_at %}submitted {{ attempt.submitted_at|wat }}{% else %}still writing{% endif %}</p>
+  </div>
+  <div><span class="pill">{{ attempt.score }} / {{ test.max_score }}</span></div>
+</div>
+{% for r in rows %}
+<div class="card" style="margin-bottom:.8rem">
+  <strong>{{ forloop.counter }}.</strong> {{ r.q.text }}
+  <span class="pill">
+    {% if r.verdict == "correct" %}Correct{% elif r.verdict == "wrong" %}Wrong{% else %}Not answered{% endif %}
+  </span>
+  <div class="muted small">Their answer: {{ r.given }}</div>
+  <div class="muted small">Correct answer: {{ r.key }}</div>
+</div>
+{% empty %}
+<p class="muted">No questions were drawn for this attempt.</p>
+{% endfor %}
+{% endblock %}

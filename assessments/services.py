@@ -293,6 +293,32 @@ def submit(attempt, *, force=False):
     return attempt
 
 
+def clone_test(t, *, actor):
+    """Copy settings and questions into a fresh draft with a new join code.
+    Attempts, results and lifecycle stay with the original."""
+    c = Test(
+        course=t.course, title=f"{t.title} (copy)",
+        n_objective=t.n_objective, n_tf=t.n_tf, n_subjective=t.n_subjective,
+        seconds_objective=t.seconds_objective, seconds_tf=t.seconds_tf,
+        seconds_subjective=t.seconds_subjective,
+        points_per_question=t.points_per_question, allow_review=t.allow_review,
+        created_by=actor,
+    )
+    for _ in range(20):
+        candidate = make_join_code()
+        if not Test.objects.filter(join_code=candidate).exists():
+            c.join_code = candidate
+            break
+    c.save()
+    for q in t.questions.all():
+        Question.objects.create(
+            test=c, kind=q.kind, text=q.text, options=q.options,
+            answer_key=q.answer_key, accepted_answers=q.accepted_answers, order=q.order,
+        )
+    audit(actor=actor, action="test.clone", obj=c, detail={"source": t.id})
+    return c
+
+
 def release_results(t, *, actor):
     """One action, to everyone. Also closes the test permanently."""
     if t.results_released_at:

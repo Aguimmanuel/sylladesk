@@ -6,10 +6,10 @@ from django.utils import timezone
 from core.models import AuditLog
 
 from ..models import Answer, Attempt, Question
-from ..services import (add_question, advance_section, close_test, create_test,
-                        delete_question, finalize, join_state, regenerate_join_code,
-                        release_results, save_answer, start_attempt, start_test,
-                        submit, update_settings)
+from ..services import (add_question, advance_section, clone_test, close_test,
+                        create_test, delete_question, finalize, join_state,
+                        regenerate_join_code, release_results, save_answer,
+                        start_attempt, start_test, submit, update_settings)
 from .helpers import (add_mcq, add_short, add_tf, enroll, make_student_enrolled,
                       make_test, open_test)
 
@@ -342,6 +342,32 @@ class ReleaseTests(TestCase):
         release_results(self.t, actor=self.t.created_by)
         running.refresh_from_db()
         self.assertIsNotNone(running.submitted_at)
+
+
+class CloneTests(TestCase):
+    def test_clone_copies_questions_into_fresh_draft(self):
+        t = make_test(n_obj=2, n_tf=1, n_short=0, seconds_subjective=90, points_per_question=2)
+        add_mcq(t)
+        add_mcq(t, text="Water is?", key="A", options="H2O\nCO2")
+        add_tf(t)
+        start_test(t, actor=t.created_by)
+        c = clone_test(t, actor=t.created_by)
+        self.assertNotEqual(c.id, t.id)
+        self.assertTrue(c.title.endswith("(copy)"))
+        self.assertEqual(c.status, "draft")  # runs its own lifecycle from scratch
+        self.assertNotEqual(c.join_code, t.join_code)
+        self.assertEqual((c.n_objective, c.n_tf), (2, 1))
+        self.assertEqual(c.seconds_subjective, 90)
+        self.assertEqual(c.points_per_question, 2)
+        self.assertEqual(
+            list(c.questions.values_list("text", flat=True)),
+            list(t.questions.values_list("text", flat=True)),
+        )
+        self.assertTrue(AuditLog.objects.filter(action="test.clone").exists())
+        # editing the copy leaves the original untouched
+        add_mcq(c, text="Added to the copy", key="C", options="x\ny\nz")
+        self.assertEqual(c.questions.count(), 4)
+        self.assertEqual(t.questions.count(), 3)
 
 
 class CodeTests(TestCase):

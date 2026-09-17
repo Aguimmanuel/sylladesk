@@ -46,11 +46,20 @@
     }).catch(function () {});
   }
 
+  /* answer boxes start one line tall and grow with the typing */
+  function grow(el) {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+  var areas = form.querySelectorAll("textarea[data-q]");
+  for (var i = 0; i < areas.length; i++) grow(areas[i]);
+
   form.addEventListener("change", function (e) {
     if (e.target.matches("[data-q]")) save(e.target);
   });
   form.addEventListener("input", function (e) {
     if (e.target.tagName === "TEXTAREA" && e.target.matches("[data-q]")) {
+      grow(e.target);
       clearTimeout(e.target._t);
       e.target._t = setTimeout(function () { save(e.target); }, 700);
     }

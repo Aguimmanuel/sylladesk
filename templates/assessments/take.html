@@ -16,12 +16,12 @@
   <div class="card" style="margin-bottom:1rem">
     <strong>{{ forloop.counter }}.</strong> {{ q.text }}
     {% if q.kind == "short" %}
-      <textarea name="q_{{ q.id }}" data-q="{{ q.id }}" rows="3"
+      <textarea name="q_{{ q.id }}" data-q="{{ q.id }}" rows="1" class="answer-text"
         placeholder="Type your answer">{% if answers %}{{ answers|get_item:q.id|get_attr:"text" }}{% endif %}</textarea>
     {% elif q.kind == "mcq" %}
       {% for opt in q.option_list %}
       {% with letter=q|letter:forloop.counter0 a=answers|get_item:q.id %}
-      <label style="display:block">
+      <label class="option-row">
         <input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="{{ letter }}"
           {% if a and a.choice == letter %}checked{% endif %}>
         {{ letter }}. {{ opt }}
@@ -30,9 +30,9 @@
       {% endfor %}
     {% else %}
       {% with a=answers|get_item:q.id %}
-      <label style="display:block"><input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="TRUE"
+      <label class="option-row"><input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="TRUE"
         {% if a and a.choice == "TRUE" %}checked{% endif %}> True</label>
-      <label style="display:block"><input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="FALSE"
+      <label class="option-row"><input type="radio" name="q_{{ q.id }}" data-q="{{ q.id }}" value="FALSE"
         {% if a and a.choice == "FALSE" %}checked{% endif %}> False</label>
       {% endwith %}
     {% endif %}

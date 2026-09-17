@@ -7,7 +7,8 @@
   <p class="muted">{{ test.course.code }}</p>
 
   {% if state == "upcoming" %}
-    <p>The lecturer has not started the test yet. This page unlocks the moment it starts.</p>
+    <p>The test has not started yet. Leave this page open — it flips over
+      by itself the moment the lecturer starts the test.</p>
   {% elif state == "open" %}
     <p><a class="btn btn-primary" href="{% url 'assessments:take' test.join_code %}">Start the test</a></p>
     <p class="muted small">Your timer starts the moment you start and submits itself when time runs out.
@@ -23,12 +24,36 @@
   {% elif state == "released" %}
     {% if attempt %}
       <p>Your score: <strong>{{ score }} / {{ test.max_score }}</strong></p>
-      {% if test.allow_review %}
-      <p class="muted small">Ask your lecturer for the question breakdown.</p>
-      {% endif %}
+      <h2>Your answers</h2>
+      {% for r in review %}
+      <div class="card" style="margin-bottom:.8rem; text-align:left">
+        <strong>{{ forloop.counter }}.</strong> {{ r.q.text }}
+        <span class="pill">
+          {% if r.verdict == "correct" %}Correct{% elif r.verdict == "wrong" %}Wrong{% else %}Not answered{% endif %}
+        </span>
+        <div class="muted small">Your answer: {{ r.given }}</div>
+        <div class="muted small">Correct answer: {{ r.key }}</div>
+      </div>
+      {% endfor %}
     {% else %}
       <p class="muted">No test score — you did not participate.</p>
     {% endif %}
   {% endif %}
 </div>
+{% if state == "upcoming" or state == "closed" %}
+<script>
+  /* poll while waiting: the page reloads itself when the state changes */
+  (function () {
+    var known = "{{ state }}";
+    setInterval(function () {
+      fetch(window.location.href.replace(/[^/]+\/$/, "status/"), {
+        headers: { "X-Requested-With": "fetch" },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d.state !== known) location.reload(); })
+        .catch(function () {});
+    }, 5000);
+  })();
+</script>
+{% endif %}
 {% endblock %}

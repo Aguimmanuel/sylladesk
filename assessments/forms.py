@@ -9,7 +9,7 @@ class TestForm(forms.ModelForm):
         fields = [
             "title", "n_objective", "n_tf", "n_subjective",
             "seconds_objective", "seconds_tf", "seconds_subjective",
-            "points_per_question", "allow_review",
+            "points_per_question",
         ]
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Week 4 Quiz"}),

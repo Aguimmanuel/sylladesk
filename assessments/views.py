@@ -9,6 +9,7 @@ from courses.access import is_staff_of, user_role_in_course
 from courses.views import _course_or_404
 
 from .forms import JoinForm, QuestionForm, TestForm
+from .grading import grade_objective, grade_subjective
 from .models import Attempt, Question, Test
 from . import services
 
@@ -30,6 +31,40 @@ def _staff_test(request, course_id, test_id):
     return course, t, True
 
 
+def _review_rows(attempt):
+    """Per-question verdicts for the lecturer's attempt page and the
+    student's own review after release."""
+    answers = {a.question_id: a for a in attempt.answers.all()}
+    rows = []
+    for q in attempt.drawn_questions():
+        row = {"q": q, "given": "—", "key": "—", "verdict": "blank"}
+        if q.kind == "mcq":
+            opts = q.option_list()
+
+            def opt_text(letter):
+                i = ord(letter) - 65
+                return f"{letter} — {opts[i]}" if 0 <= i < len(opts) else letter
+
+            row["key"] = opt_text(q.answer_key.strip().upper())
+            if answers.get(q.id) and answers[q.id].choice:
+                row["given"] = opt_text(answers[q.id].choice.strip().upper())
+                row["verdict"] = "correct" if grade_objective(q, answers[q.id].choice) else "wrong"
+        elif q.kind == "tf":
+            row["key"] = q.answer_key.strip().upper().capitalize()
+            if answers.get(q.id) and answers[q.id].choice:
+                row["given"] = answers[q.id].choice.strip().upper().capitalize()
+                row["verdict"] = "correct" if grade_objective(q, answers[q.id].choice) else "wrong"
+        else:
+            row["key"] = ", ".join(
+                s.strip() for s in q.accepted_answers.splitlines() if s.strip()
+            ) or "—"
+            if answers.get(q.id) and answers[q.id].text.strip():
+                row["given"] = answers[q.id].text.strip()
+                row["verdict"] = "correct" if grade_subjective(q, answers[q.id].text) else "wrong"
+        rows.append(row)
+    return rows
+
+
 @login_required
 def create(request, course_id):
     course = _course_or_404(course_id)
@@ -48,7 +83,6 @@ def create(request, course_id):
                 seconds_tf=form.cleaned_data["seconds_tf"],
                 seconds_subjective=form.cleaned_data["seconds_subjective"],
                 points_per_question=form.cleaned_data["points_per_question"],
-                allow_review=form.cleaned_data["allow_review"],
             )
         except ValueError as e:
             form.add_error(None, str(e))
@@ -74,7 +108,7 @@ def edit(request, course_id, test_id):
     form = TestForm(request.POST or None, instance=t)
     if request.method == "POST" and form.is_valid():
         fields = ("title", "n_objective", "n_tf", "n_subjective", "seconds_objective",
-                  "seconds_tf", "seconds_subjective", "points_per_question", "allow_review")
+                  "seconds_tf", "seconds_subjective", "points_per_question")
         try:
             services.update_settings(t, actor=request.user,
                                      **{f: form.cleaned_data[f] for f in fields})
@@ -103,6 +137,7 @@ def detail(request, course_id, test_id):
         "qform": QuestionForm(), "locked": locked,
         "attempts": t.attempts.count(),
         "submitted": t.attempts.filter(submitted_at__isnull=False).count(),
+        "attempts_list": t.attempts.select_related("student").order_by("started_at"),
     }
     return render(request, "assessments/detail.html", context)
 
@@ -218,8 +253,9 @@ def join(request, code):
     if attempt and state != "released":
         services.finalize(attempt)
     score = attempt.score() if (attempt and t.results_released_at) else None
+    review = _review_rows(attempt) if (attempt and t.results_released_at) else None
     return render(request, "assessments/join.html", {
-        "test": t, "state": state, "attempt": attempt, "score": score,
+        "test": t, "state": state, "attempt": attempt, "score": score, "review": review,
         "now": timezone.now(),
     })
 
@@ -308,3 +344,38 @@ def submit_test(request, code):
         messages.error(request, str(e))
         services.finalize(attempt)
     return redirect("assessments:join", code=code)
+
+
+@login_required
+def status(request, code):
+    """Polled by the join page so it flips over by itself when the
+    lecturer starts the test."""
+    t = _test_by_code(code)
+    if user_role_in_course(request.user, t.course) is None:
+        raise Http404()
+    state, _ = services.join_state(t, student=request.user)
+    return JsonResponse({"state": state})
+
+
+@login_required
+def attempt_detail(request, course_id, test_id, attempt_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    attempt = get_object_or_404(Attempt, pk=attempt_id, test=t)
+    services.finalize(attempt)
+    return render(request, "assessments/attempt.html", {
+        "course": course, "test": t, "attempt": attempt,
+        "rows": _review_rows(attempt),
+    })
+
+
+@login_required
+@require_POST
+def clone(request, course_id, test_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    c = services.clone_test(t, actor=request.user)
+    messages.success(request, "Cloned. The copy is a draft — edit its settings and questions freely.")
+    return redirect("assessments:detail", course_id=course.id, test_id=c.id)
