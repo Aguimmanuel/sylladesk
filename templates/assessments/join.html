@@ -2,6 +2,7 @@
 {% load lms_extras %}
 {% block title %}{{ test.title }}{% endblock %}
 {% block content %}
+<p><a href="{% url 'courses:detail' test.course_id %}" class="muted small">&#8592; {{ test.course.code }}</a></p>
 <div class="card center-card">
   <h1>{{ test.title }}</h1>
   <p class="muted">{{ test.course.code }}</p>

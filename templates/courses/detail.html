@@ -72,15 +72,21 @@
 {% if tests %}
 <div class="card">
   <table class="table">
-    <thead><tr><th>Title</th><th>Status</th>{% if is_staff %}<th>Code</th><th></th>{% endif %}</tr></thead>
+    <thead><tr><th>Title</th><th>Status</th>{% if is_staff %}<th>Code</th><th></th>{% else %}<th></th>{% endif %}</tr></thead>
     <tbody>
     {% for test in tests %}
       <tr>
         <td>{{ test.title }}</td>
-        <td class="muted small">{% if test.status == "released" %}Released{% elif test.status == "closed" %}Closed{% elif test.status == "live" %}Live{% else %}Draft{% endif %}</td>
+        <td class="muted small">{% if is_staff %}
+          {% if test.status == "released" %}Released{% elif test.status == "closed" %}Closed{% elif test.status == "live" %}Live{% else %}Draft{% endif %}
+        {% else %}
+          {% if test.status == "released" %}Results out{% elif test.status == "closed" %}Closed{% elif test.status == "live" %}Live{% else %}Upcoming{% endif %}
+        {% endif %}</td>
         {% if is_staff %}
         <td><strong>{{ test.join_code }}</strong></td>
         <td class="row-actions"><a class="btn" href="{% url 'assessments:detail' course.id test.id %}">Open</a></td>
+        {% else %}
+        <td class="row-actions">{% if test.status != "draft" %}<a class="btn" href="{% url 'assessments:join' test.join_code %}">View</a>{% endif %}</td>
         {% endif %}
       </tr>
     {% endfor %}

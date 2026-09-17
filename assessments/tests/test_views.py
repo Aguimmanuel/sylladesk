@@ -229,3 +229,54 @@ class ReviewViewTests(TestCase):
         copy = Test.objects.get(title__endswith="(copy)")
         self.assertEqual(copy.status, "draft")
         self.assertEqual(copy.questions.count(), t.questions.count())
+
+
+class LiveAttemptsTests(TestCase):
+    def test_attempts_fragment_shows_new_attempts(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        open_test(t)
+        url = reverse("assessments:attempts_fragment", args=[t.course_id, t.id])
+        self.client.force_login(t.created_by)
+        r = self.client.get(url)
+        self.assertContains(r, "No student has started yet.")
+        start_attempt(t, student=s)
+        r = self.client.get(url)
+        self.assertContains(r, s.full_name)
+        self.assertContains(r, "In progress")
+
+    def test_attempts_fragment_is_staff_only(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        self.client.force_login(s)
+        r = self.client.get(reverse("assessments:attempts_fragment", args=[t.course_id, t.id]))
+        self.assertEqual(r.status_code, 302)
+
+
+class StudentTestListTests(TestCase):
+    def test_student_sees_upcoming_not_draft_and_view_link(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        self.client.force_login(s)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, "Upcoming")
+        self.assertNotContains(r, "Draft")
+        open_test(t)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, "View")
+
+    def test_join_page_has_back_link_to_course(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        open_test(t)
+        self.client.force_login(s)
+        r = self.client.get(reverse("assessments:join", args=[t.join_code]))
+        self.assertContains(r, "courses/%d" % t.course_id)

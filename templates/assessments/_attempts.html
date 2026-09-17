@@ -1,0 +1,29 @@
+{% load lms_extras %}<div class="card" id="attempts-box" data-live="{% if test.status == "live" or test.status == "closed" %}1{% else %}0{% endif %}">
+  <p>{{ attempts }} started · {{ submitted }} submitted</p>
+  {% if attempts_list %}
+  <table class="table">
+    <thead><tr><th>Student</th><th>Started</th><th>Status</th><th>Score</th><th></th></tr></thead>
+    <tbody>
+    {% for a in attempts_list %}
+      <tr>
+        <td>{{ a.student.full_name }}<div class="muted small">{{ a.student.username }}</div></td>
+        <td class="muted small">{{ a.started_at|wat }}</td>
+        <td>{% if a.submitted_at %}Submitted{% else %}In progress{% endif %}</td>
+        <td><strong>{{ a.score }}</strong> / {{ test.max_score }}</td>
+        <td class="row-actions"><a class="btn" href="{% url 'assessments:attempt' test.course_id test.id a.id %}">View</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No student has started yet.</p>
+  {% endif %}
+  {% if test.status == "live" or test.status == "closed" %}
+  <form method="post" action="{% url 'assessments:release' test.course_id test.id %}"
+        onsubmit="return confirm('Release results to everyone? The test closes for good.')">
+    {% csrf_token %}<button type="submit" class="btn btn-primary">Release results</button>
+  </form>
+  {% elif test.status == "released" %}
+  <p class="muted">Results are out.</p>
+  {% endif %}
+</div>

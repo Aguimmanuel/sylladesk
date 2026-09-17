@@ -3,6 +3,7 @@
 {% load lms_extras %}
 {% block title %}{{ test.title }}{% endblock %}
 {% block content %}
+<p><a href="{% url 'courses:detail' test.course_id %}" class="muted small">&#8592; {{ test.course.code }}</a></p>
 <div class="page-head">
   <div><h1>{{ test.title }}</h1>
   <p class="muted small">Section {{ section_number }} of {{ section_total }}: {{ section_label }} ·

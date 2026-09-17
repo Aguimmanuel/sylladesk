@@ -371,6 +371,21 @@ def attempt_detail(request, course_id, test_id, attempt_id):
 
 
 @login_required
+def attempts_fragment(request, course_id, test_id):
+    """HTML fragment of the Attempts section. The test page polls it while
+    the test runs, so new starters and submissions appear without a reload."""
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    return render(request, "assessments/_attempts.html", {
+        "test": t,
+        "attempts": t.attempts.count(),
+        "submitted": t.attempts.filter(submitted_at__isnull=False).count(),
+        "attempts_list": t.attempts.select_related("student").order_by("started_at"),
+    })
+
+
+@login_required
 @require_POST
 def clone(request, course_id, test_id):
     course, t, allowed = _staff_test(request, course_id, test_id)

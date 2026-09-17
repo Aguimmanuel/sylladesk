@@ -15,6 +15,7 @@ urlpatterns = [
          views.delete_question, name="delete_question"),
     path("courses/<int:course_id>/tests/<int:test_id>/code/", views.regenerate, name="regenerate"),
     path("courses/<int:course_id>/tests/<int:test_id>/clone/", views.clone, name="clone"),
+    path("courses/<int:course_id>/tests/<int:test_id>/attempts/", views.attempts_fragment, name="attempts_fragment"),
     path("courses/<int:course_id>/tests/<int:test_id>/attempts/<int:attempt_id>/",
          views.attempt_detail, name="attempt"),
     path("courses/<int:course_id>/tests/<int:test_id>/release/", views.release, name="release"),
