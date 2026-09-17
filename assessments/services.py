@@ -98,6 +98,35 @@ def close_test(t, *, actor):
     return t
 
 
+def reopen_test(t, *, actor):
+    """Opens the door again after a close. Released stays closed for good."""
+    if t.results_released_at:
+        raise ValueError("Results are already out - a released test stays closed.")
+    if not t.started_at:
+        raise ValueError("Start the test first.")
+    if not t.closed_at:
+        raise ValueError("The test is not closed.")
+    t.closed_at = None
+    t.save(update_fields=["closed_at"])
+    audit(actor=actor, action="test.reopen", obj=t)
+    return t
+
+
+def archive_test(t, *, actor):
+    """Hides the test from everyone, including join by code. Restorable."""
+    t.is_active = False
+    t.save(update_fields=["is_active"])
+    audit(actor=actor, action="test.archive", obj=t)
+    return t
+
+
+def restore_test(t, *, actor):
+    t.is_active = True
+    t.save(update_fields=["is_active"])
+    audit(actor=actor, action="test.restore", obj=t)
+    return t
+
+
 def regenerate_join_code(t, *, actor):
     """Leak response: the old code dies instantly; running attempts are
     unaffected because they are bound to the attempt, not the code."""

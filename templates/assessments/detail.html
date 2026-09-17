@@ -41,6 +41,15 @@
     {% csrf_token %}<button type="submit" class="btn">Close test</button>
   </form>
 </div>
+{% elif test.status == "closed" %}
+<div class="card">
+  <h2>Closed</h2>
+  <p class="muted small">Closed {{ test.closed_at|wat }}. Nobody new can join. Changed your mind?
+    Open it again — students who have not started can join.</p>
+  <form method="post" action="{% url 'assessments:reopen' course.id test.id %}" class="inline-form">
+    {% csrf_token %}<button type="submit" class="btn">Open test again</button>
+  </form>
+</div>
 {% endif %}
 
 <div class="card">
@@ -103,6 +112,16 @@
 
 <h2>Attempts</h2>
 {% include "assessments/_attempts.html" %}
+
+<h2>Manage</h2>
+<div class="card">
+  <p class="muted small">Removing hides this test from everyone, including join by code.
+    You can bring it back from the course page anytime.</p>
+  <form method="post" action="{% url 'assessments:archive' course.id test.id %}" class="inline-form"
+        onsubmit="return confirm('Remove this test? It disappears for everyone - you can restore it from the course page.')">
+    {% csrf_token %}<button type="submit" class="btn btn-ghost">Remove test</button>
+  </form>
+</div>
 {% if test.status == "live" or test.status == "closed" %}
 <script>
 /* the attempts box refreshes itself while the test runs, so new starters

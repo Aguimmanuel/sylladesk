@@ -174,6 +174,43 @@ def close(request, course_id, test_id):
 
 @login_required
 @require_POST
+def reopen(request, course_id, test_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    try:
+        services.reopen_test(t, actor=request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "The test is open again. Students can join.")
+    return redirect("assessments:detail", course_id=course.id, test_id=t.id)
+
+
+@login_required
+@require_POST
+def archive(request, course_id, test_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    services.archive_test(t, actor=request.user)
+    messages.success(request, "Test removed. You can bring it back from the course page.")
+    return redirect("courses:detail", course_id=course.id)
+
+
+@login_required
+@require_POST
+def restore(request, course_id, test_id):
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    services.restore_test(t, actor=request.user)
+    messages.success(request, "Test restored.")
+    return redirect("courses:detail", course_id=course.id)
+
+
+@login_required
+@require_POST
 def add_question(request, course_id, test_id):
     course, t, allowed = _staff_test(request, course_id, test_id)
     if not allowed:

@@ -41,13 +41,15 @@
     {% endif %}
   {% endif %}
 </div>
-{% if state == "upcoming" or state == "closed" %}
+{% if state != "released" %}
 <script>
-  /* poll while waiting: the page reloads itself when the state changes */
+  /* poll while the page sits here: it reloads itself whenever the state
+     changes - test starts, closes, or results come out */
   (function () {
     var known = "{{ state }}";
+    var url = "{% url 'assessments:status' test.join_code %}";
     setInterval(function () {
-      fetch(window.location.href.replace(/[^/]+\/$/, "status/"), {
+      fetch(url, {
         headers: { "X-Requested-With": "fetch" },
       })
         .then(function (r) { return r.json(); })

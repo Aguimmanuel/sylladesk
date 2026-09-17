@@ -6,10 +6,11 @@ from django.utils import timezone
 from core.models import AuditLog
 
 from ..models import Answer, Attempt, Question
-from ..services import (add_question, advance_section, clone_test, close_test,
-                        create_test, delete_question, finalize, join_state,
-                        regenerate_join_code, release_results, save_answer,
-                        start_attempt, start_test, submit, update_settings)
+from ..services import (add_question, advance_section, archive_test, clone_test,
+                        close_test, create_test, delete_question, finalize,
+                        join_state, regenerate_join_code, release_results,
+                        reopen_test, restore_test, save_answer, start_attempt,
+                        start_test, submit, update_settings)
 from .helpers import (add_mcq, add_short, add_tf, enroll, make_student_enrolled,
                       make_test, open_test)
 
@@ -342,6 +343,47 @@ class ReleaseTests(TestCase):
         release_results(self.t, actor=self.t.created_by)
         running.refresh_from_db()
         self.assertIsNotNone(running.submitted_at)
+
+
+class ReopenTests(TestCase):
+    def test_reopen_after_close_lets_students_join_again(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        start_test(t, actor=t.created_by)
+        close_test(t, actor=t.created_by)
+        with self.assertRaises(ValueError):
+            start_attempt(t, student=s)
+        reopen_test(t, actor=t.created_by)
+        self.assertIsNone(t.closed_at)
+        a = start_attempt(t, student=s)  # the door is open again
+        self.assertIsNotNone(a.id)
+        self.assertTrue(AuditLog.objects.filter(action="test.reopen").exists())
+
+    def test_reopen_refuses_draft_and_released(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        with self.assertRaises(ValueError):
+            reopen_test(t, actor=t.created_by)
+        start_test(t, actor=t.created_by)
+        release_results(t, actor=t.created_by)
+        with self.assertRaises(ValueError):
+            reopen_test(t, actor=t.created_by)
+
+
+class ArchiveTests(TestCase):
+    def test_archive_hides_and_restore_brings_back(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        archive_test(t, actor=t.created_by)
+        t.refresh_from_db()
+        self.assertFalse(t.is_active)
+        self.assertTrue(AuditLog.objects.filter(action="test.archive").exists())
+        restore_test(t, actor=t.created_by)
+        t.refresh_from_db()
+        self.assertTrue(t.is_active)
+        self.assertTrue(AuditLog.objects.filter(action="test.restore").exists())
 
 
 class CloneTests(TestCase):

@@ -66,6 +66,13 @@ class JoinViewTests(TestCase):
         r = self.client.get(reverse("assessments:join", args=["ZZZZZZ"]))
         self.assertEqual(r.status_code, 404)
 
+    def test_join_page_embeds_correct_status_url(self):
+        """Regression: the poll used to derive its URL from the address bar
+        and dropped the join code, so the live flip never fired."""
+        self.client.force_login(self.s)
+        r = self.client.get(reverse("assessments:join", args=[self.t.join_code]))
+        self.assertContains(r, reverse("assessments:status", args=[self.t.join_code]))
+
 
 class RunViewTests(TestCase):
     """Start / close / advance / edit through the real routes."""
@@ -280,3 +287,38 @@ class StudentTestListTests(TestCase):
         self.client.force_login(s)
         r = self.client.get(reverse("assessments:join", args=[t.join_code]))
         self.assertContains(r, "courses/%d" % t.course_id)
+
+
+class ReopenViewTests(TestCase):
+    def test_close_then_reopen_via_view(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        open_test(t)
+        self.client.force_login(t.created_by)
+        self.client.post(reverse("assessments:close", args=[t.course_id, t.id]))
+        r = self.client.post(reverse("assessments:reopen", args=[t.course_id, t.id]), follow=True)
+        self.assertContains(r, "open again")
+        t.refresh_from_db()
+        self.assertIsNone(t.closed_at)
+        self.assertContains(r, "Close test")  # back to the Running card
+
+
+class ArchiveViewTests(TestCase):
+    def test_remove_hides_from_everyone_and_restore_brings_back(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        self.client.force_login(t.created_by)
+        self.client.post(reverse("assessments:archive", args=[t.course_id, t.id]))
+        self.client.force_login(s)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertNotContains(r, t.title)  # gone from the student's course page
+        r = self.client.get(reverse("assessments:join", args=[t.join_code]))
+        self.assertEqual(r.status_code, 404)  # join by code is dead too
+        self.client.force_login(t.created_by)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, "Removed tests")
+        self.client.post(reverse("assessments:restore", args=[t.course_id, t.id]))
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, t.title)  # back, exactly as it was
