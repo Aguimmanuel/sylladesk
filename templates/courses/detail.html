@@ -72,7 +72,7 @@
 {% if tests %}
 <div class="card">
   <table class="table">
-    <thead><tr><th>Title</th><th>Status</th>{% if is_staff %}<th>Code</th><th></th>{% else %}<th></th>{% endif %}</tr></thead>
+    <thead><tr><th>Title</th><th>Status</th><th></th></tr></thead>
     <tbody>
     {% for test in tests %}
       <tr>
@@ -83,16 +83,21 @@
           {% if test.status == "released" %}Results out{% elif test.status == "closed" %}Closed{% elif test.status == "live" %}Live{% else %}Upcoming{% endif %}
         {% endif %}</td>
         {% if is_staff %}
-        <td><strong>{{ test.join_code }}</strong></td>
         <td class="row-actions">
           <a class="btn" href="{% url 'assessments:detail' course.id test.id %}">Open</a>
           <form method="post" action="{% url 'assessments:archive' course.id test.id %}" class="inline-form"
-                onsubmit="return confirm('Remove this test? It disappears for everyone - you can restore it below.')">
+                onsubmit="return confirm('Remove this test? It disappears for everyone - you can restore it from the Trash.')">
             {% csrf_token %}<button type="submit" class="btn btn-ghost">Remove</button>
           </form>
         </td>
         {% else %}
-        <td class="row-actions">{% if test.status != "draft" %}<a class="btn" href="{% url 'assessments:join' test.join_code %}">View</a>{% endif %}</td>
+        <td class="row-actions">{% if test.status != "draft" %}
+          {% if test.status == "released" or test.id in unlocked_ids %}
+          <a class="btn" href="{% url 'assessments:join' test.join_code %}">View</a>
+          {% else %}
+          <a class="btn" href="{% url 'assessments:enter' course.id test.id %}">View</a>
+          {% endif %}
+        {% endif %}</td>
         {% endif %}
       </tr>
     {% endfor %}
@@ -101,26 +106,6 @@
 </div>
 {% elif is_staff %}
 <div class="card"><p class="muted">No tests yet.</p></div>
-{% endif %}
-{% if is_staff and tests_removed %}
-<div class="card" style="margin-top:.8rem">
-  <strong>Removed tests</strong>
-  <p class="muted small">Hidden from everyone. Restoring puts the test back exactly as it was.</p>
-  <table class="table">
-    <tbody>
-    {% for test in tests_removed %}
-      <tr>
-        <td>{{ test.title }}<div class="muted small">{% if test.status == "released" %}Results released{% else %}Not released{% endif %}</div></td>
-        <td class="row-actions">
-          <form method="post" action="{% url 'assessments:restore' course.id test.id %}" class="inline-form">
-            {% csrf_token %}<button type="submit" class="btn">Restore</button>
-          </form>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
 {% endif %}
 {% endif %}
 
@@ -225,6 +210,13 @@
     {% endfor %}
     </tbody>
   </table>
+</div>
+{% endif %}
+
+{% if is_staff %}
+<div class="card" style="margin-top:1rem">
+  <a class="btn" href="{% url 'courses:trash' course.id %}">Trash{% if trash_count %} ({{ trash_count }}){% endif %}</a>
+  <span class="muted small" style="margin-left:.5rem">Removed materials, tests and assignments live here until you restore or delete them for good.</span>
 </div>
 {% endif %}
 {% endblock %}

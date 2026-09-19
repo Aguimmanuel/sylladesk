@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}Trash · {{ course.code }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'courses:detail' course.id %}" class="muted small">&#8592; {{ course.code }}</a></p>
+<div class="page-head">
+  <div><h1>Trash</h1>
+  <p class="muted small">Removed items are hidden from everyone until you restore them,
+    or delete them for good.</p></div>
+</div>
+
+{% if not materials and not tests and not assignments %}
+<div class="card"><p class="muted">The trash is empty.</p></div>
+{% endif %}
+
+{% if materials %}
+<h2>Materials ({{ materials|length }})</h2>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Title</th><th>Week</th><th></th></tr></thead>
+    <tbody>
+    {% for m in materials %}
+      <tr>
+        <td>{{ m.title }}</td>
+        <td class="muted small">{{ m.week_no }}</td>
+        <td class="row-actions">
+          <form method="post" action="{% url 'courses:trash_restore' course.id 'material' m.id %}" class="inline-form">
+            {% csrf_token %}<button type="submit" class="btn">Restore</button>
+          </form>
+          <form method="post" action="{% url 'courses:trash_delete' course.id 'material' m.id %}" class="inline-form"
+                onsubmit="return confirm('Delete this material for good? The file is destroyed and this cannot be undone.')">
+            {% csrf_token %}<button type="submit" class="btn btn-ghost">Delete for good</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if tests %}
+<h2>Tests ({{ tests|length }})</h2>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Title</th><th>State</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tests %}
+      <tr>
+        <td>{{ t.title }}{% if t.is_makeup %} <span class="pill">Makeup</span>{% endif %}</td>
+        <td class="muted small">{% if t.results_released_at %}Results were released{% else %}Not released{% endif %}
+          · {{ t.questions.count }} question{{ t.questions.count|pluralize }}</td>
+        <td class="row-actions">
+          <form method="post" action="{% url 'courses:trash_restore' course.id 'test' t.id %}" class="inline-form">
+            {% csrf_token %}<button type="submit" class="btn">Restore</button>
+          </form>
+          <form method="post" action="{% url 'courses:trash_delete' course.id 'test' t.id %}" class="inline-form"
+                onsubmit="return confirm('Delete this test for good? This cannot be undone.')">
+            {% csrf_token %}<button type="submit" class="btn btn-ghost">Delete for good</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if assignments %}
+<h2>Assignments ({{ assignments|length }})</h2>
+<div class="card">
+  <table class="table">
+    <thead><tr><th>Title</th><th>Due</th><th></th></tr></thead>
+    <tbody>
+    {% for a in assignments %}
+      <tr>
+        <td>{{ a.title }}</td>
+        <td class="muted small">{{ a.due_at|wat }}</td>
+        <td class="row-actions">
+          <form method="post" action="{% url 'courses:trash_restore' course.id 'assignment' a.id %}" class="inline-form">
+            {% csrf_token %}<button type="submit" class="btn">Restore</button>
+          </form>
+          <form method="post" action="{% url 'courses:trash_delete' course.id 'assignment' a.id %}" class="inline-form"
+                onsubmit="return confirm('Delete this assignment for good? This cannot be undone.')">
+            {% csrf_token %}<button type="submit" class="btn btn-ghost">Delete for good</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

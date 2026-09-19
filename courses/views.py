@@ -16,6 +16,21 @@ from .services import claim_roster_entries, import_roster
 User = get_user_model()
 
 
+def _removed_items(course):
+    """Everything sitting in this course's trash, newest first."""
+    from assessments.models import Test
+    from assignments.models import Assignment
+    from materials.models import Material
+    return {
+        "materials": Material.objects.filter(course=course, is_deleted=True)
+        .order_by("-id"),
+        "tests": Test.objects.filter(course=course, is_active=False)
+        .order_by("-created_at"),
+        "assignments": Assignment.objects.filter(course=course, is_active=False)
+        .order_by("-id"),
+    }
+
+
 @login_required
 def list_courses(request):
     user = request.user
@@ -96,12 +111,93 @@ def detail(request, course_id):
                     .select_related("user").order_by("user__full_name"))
         removed_students = (Enrollment.objects.filter(course=course, role_in_course="student", is_active=False)
                             .select_related("user").order_by("user__full_name"))
+    removed = _removed_items(course) if staff else None
+    unlocked_ids = []
+    if not staff:
+        from assessments.models import TestUnlock
+        unlocked_ids = set(
+            TestUnlock.objects.filter(student=request.user, test__course=course)
+            .values_list("test_id", flat=True)
+        )
     return render(request, "courses/detail.html", {
         "course": course, "role": role, "materials": materials, "roster": roster,
-        "assignments": assignments, "tests": tests, "tests_removed": tests_removed,
+        "assignments": assignments, "tests": tests,
         "is_staff": staff, "mform": MaterialForm() if staff else None,
         "students": students, "removed_students": removed_students,
+        "trash_count": sum(q.count() for q in removed.values()) if removed else 0,
+        "unlocked_ids": unlocked_ids,
     })
+
+
+@login_required
+def trash(request, course_id):
+    course = _course_or_404(course_id)
+    if not is_staff_of(request.user, course):
+        messages.error(request, "Not allowed.")
+        return redirect("courses:detail", course_id=course.id)
+    items = _removed_items(course)
+    return render(request, "courses/trash.html", {"course": course, **items})
+
+
+def _trash_item(course, kind):
+    """The removed item of that kind, or 404. Deliberately ignores the
+    live filters - a trashed test is inactive, a trashed material deleted."""
+    items = _removed_items(course)
+    qs = {"material": items["materials"], "test": items["tests"],
+          "assignment": items["assignments"]}.get(kind)
+    if qs is None:
+        raise Http404()
+    return qs
+
+
+@login_required
+@require_POST
+def trash_restore(request, course_id, kind, item_id):
+    course = _course_or_404(course_id)
+    if not is_staff_of(request.user, course):
+        messages.error(request, "Not allowed.")
+        return redirect("courses:detail", course_id=course.id)
+    obj = get_object_or_404(_trash_item(course, kind), pk=item_id)
+    if kind == "material":
+        obj.is_deleted = False  # materials trash on is_deleted=True
+    else:
+        obj.is_active = True
+    obj.save()
+    audit(actor=request.user, action=f"{kind}.restore", obj=obj)
+    messages.success(request, "Restored.")
+    return redirect("courses:trash", course_id=course.id)
+
+
+@login_required
+@require_POST
+def trash_delete(request, course_id, kind, item_id):
+    """Gone for good. Refused when student records hang off the item."""
+    course = _course_or_404(course_id)
+    if not is_staff_of(request.user, course):
+        messages.error(request, "Not allowed.")
+        return redirect("courses:detail", course_id=course.id)
+    obj = get_object_or_404(_trash_item(course, kind), pk=item_id)
+    if kind == "test" and obj.attempts.exists():
+        messages.error(request,
+                       "This test has student attempts, so it cannot be deleted for good. "
+                       "Restore it instead to keep the records.")
+        return redirect("courses:trash", course_id=course.id)
+    if kind == "assignment" and obj.submissions.exists():
+        messages.error(request,
+                       "This assignment has student submissions, so it cannot be deleted "
+                       "for good. Restore it instead to keep the records.")
+        return redirect("courses:trash", course_id=course.id)
+    audit(actor=request.user, action=f"{kind}.purge", obj=obj)
+    if kind == "material":
+        f = obj.file
+        obj.delete()
+        from core.models import FileBlob
+        FileBlob.objects.filter(key=f.storage_key).delete()
+        f.delete()
+    else:
+        obj.delete()
+    messages.success(request, "Deleted for good.")
+    return redirect("courses:trash", course_id=course.id)
 
 
 @login_required

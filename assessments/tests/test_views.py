@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.utils import timezone
 from django.urls import reverse
 
-from ..models import Attempt, Test
+from ..models import Attempt, Test, TestUnlock
 from ..services import (advance_section, release_results, save_answer,
                         start_attempt, submit)
 from .helpers import (add_mcq, add_short, enroll, make_student_enrolled,
@@ -56,6 +56,8 @@ class JoinViewTests(TestCase):
 
     def test_take_page_renders_drawn_questions_and_countdown(self):
         self.client.force_login(self.s)
+        self.client.post(reverse("assessments:enter", args=[self.t.course_id, self.t.id]),
+                         {"code": self.t.join_code})  # the code front door
         r = self.client.get(reverse("assessments:take", args=[self.t.join_code]))
         self.assertEqual(Attempt.objects.filter(test=self.t, student=self.s).count(), 1)
         self.assertContains(r, "countdown")
@@ -111,6 +113,7 @@ class RunViewTests(TestCase):
         open_test(self.t)
         a = start_attempt(self.t, student=self.s)
         self.client.force_login(self.s)
+        TestUnlock.objects.create(test=self.t, student=self.s)  # code already typed
         r = self.client.post(reverse("assessments:advance", args=[self.t.join_code]), follow=True)
         a.refresh_from_db()
         self.assertEqual(a.current_section, "subjective")
@@ -318,12 +321,13 @@ class ArchiveViewTests(TestCase):
         self.assertEqual(r.status_code, 404)  # join by code is dead too
         self.client.force_login(t.created_by)
         r = self.client.get(reverse("courses:detail", args=[t.course_id]))
-        self.assertContains(r, "Removed tests")
-        r = self.client.post(reverse("assessments:restore", args=[t.course_id, t.id]))
-        self.assertEqual(r.status_code, 302)  # regression: this used to 404
+        self.assertContains(r, "Trash (1)")  # the course page shows the bin
+        r = self.client.post(reverse("courses:trash_restore",
+                                     args=[t.course_id, "test", t.id]), follow=True)
+        self.assertEqual(r.status_code, 200)  # regression: restore used to 404
         r = self.client.get(reverse("courses:detail", args=[t.course_id]))
-        self.assertNotContains(r, "Removed tests")  # nothing left in the bin
         self.assertContains(r, t.title)  # back in the live table
+        self.assertNotContains(r, "Trash (1)")  # nothing left in the bin
 
 
 class MakeupViewTests(TestCase):
@@ -355,3 +359,69 @@ class MakeupViewTests(TestCase):
         self.client.force_login(t.created_by)
         r = self.client.get(reverse("courses:detail", args=[t.course_id]))
         self.assertContains(r, "Makeup")
+
+
+class CodeFrontDoorTests(TestCase):
+    """The join code gates starting: no typed code, no test."""
+
+    def _ready(self):
+        t = make_test(n_obj=1)
+        add_mcq(t)
+        s = make_student_enrolled()
+        enroll(t.course, s)
+        open_test(t)
+        return t, s
+
+    def test_view_button_leads_to_code_entry_then_test_opens(self):
+        t, s = self._ready()
+        self.client.force_login(s)
+        # course page: the View button points at the code door, not the test
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, reverse("assessments:enter", args=[t.course_id, t.id]))
+        # wrong code refused
+        r = self.client.post(reverse("assessments:enter", args=[t.course_id, t.id]),
+                             {"code": "XXXXXX"})
+        self.assertContains(r, "does not match")
+        # right code opens the door for keeps
+        r = self.client.post(reverse("assessments:enter", args=[t.course_id, t.id]),
+                             {"code": t.join_code})
+        self.assertEqual(r.status_code, 302)
+        r = self.client.get(reverse("assessments:join", args=[t.join_code]))
+        self.assertContains(r, "Start the test")
+        # after unlocking, the course page View goes straight to the test
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, reverse("assessments:join", args=[t.join_code]))
+
+    def test_take_without_code_is_turned_away(self):
+        t, s = self._ready()
+        self.client.force_login(s)
+        r = self.client.get(reverse("assessments:take", args=[t.join_code]), follow=True)
+        self.assertContains(r, "type the code")
+        self.assertEqual(
+            __import__("assessments.models", fromlist=["TestUnlock"])
+            .TestUnlock.objects.count(), 0)
+
+    def test_typed_join_code_unlocks_on_arrival(self):
+        t, s = self._ready()
+        self.client.force_login(s)
+        self.client.post(reverse("assessments:join_box"), {"code": t.join_code})
+        r = self.client.get(reverse("assessments:join", args=[t.join_code]))
+        self.assertContains(r, "Start the test")
+        r = self.client.get(reverse("assessments:take", args=[t.join_code]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_released_tests_need_no_code_to_view_scores(self):
+        t, s = self._ready()
+        a = start_attempt(t, student=s)
+        a.submitted_at = timezone.now()
+        a.save()
+        release_results(t, actor=t.created_by)
+        self.client.force_login(s)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, reverse("assessments:join", args=[t.join_code]))
+
+    def test_course_page_hides_code_column_from_staff(self):
+        t, s = self._ready()
+        self.client.force_login(t.created_by)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertNotContains(r, "<strong>" + t.join_code + "</strong>")
