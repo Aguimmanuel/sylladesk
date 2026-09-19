@@ -14,7 +14,8 @@
       {% elif test.status == "live" %}Live — students can join
       {% elif test.status == "closed" %}Closed
       {% else %}Results released{% endif %}
-    </span></p>
+    </span>
+    {% if test.is_makeup %}<span class="pill">Makeup test</span>{% endif %}</p>
   </div>
 </div>
 {% if test.status == "released" %}
@@ -84,6 +85,34 @@
     <p class="muted small">{{ qform.accepted_answers.help_text }}</p>
     <button type="submit" class="btn btn-primary">Add question</button>
   </form>
+</div>
+{% endif %}
+
+{% if test.is_makeup %}
+<h2>Makeup students</h2>
+<div class="card">
+  {% if locked %}
+  <p>{{ allowed_students|length }} on the list:
+    {% for s in allowed_students %}{{ s.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+  <p class="muted small">The list is locked while the test runs.</p>
+  {% elif enrolled_students %}
+  <p class="muted small">Only the students ticked below can take this makeup test. Everyone else
+    who opens the join code sees "not on the list".</p>
+  <form method="post" action="{% url 'assessments:set_students' course.id test.id %}" class="stack">
+    {% csrf_token %}
+    {% for e in enrolled_students %}
+    <label class="option-row">
+      <input type="checkbox" name="students" value="{{ e.user_id }}"
+        {% if e.user_id in allowed_ids %}checked{% endif %}>
+      <span>{{ e.user.full_name }} · {{ e.user.username }}</span>
+    </label>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Save list</button>
+  </form>
+  {% else %}
+  <p class="muted small">No enrolled students in this course yet — upload the roster first,
+    then pick the makeup students here.</p>
+  {% endif %}
 </div>
 {% endif %}
 

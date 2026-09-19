@@ -9,7 +9,7 @@ class TestForm(forms.ModelForm):
         fields = [
             "title", "n_objective", "n_tf", "n_subjective",
             "seconds_objective", "seconds_tf", "seconds_subjective",
-            "points_per_question",
+            "points_per_question", "is_makeup",
         ]
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Week 4 Quiz"}),
@@ -22,6 +22,7 @@ class TestForm(forms.ModelForm):
             "seconds_tf": "Seconds per true/false question",
             "seconds_subjective": "Seconds per short answer question",
             "points_per_question": "Points per question",
+            "is_makeup": "Makeup test",
         }
 
     def __init__(self, *args, **kwargs):

@@ -83,6 +83,7 @@ def create(request, course_id):
                 seconds_tf=form.cleaned_data["seconds_tf"],
                 seconds_subjective=form.cleaned_data["seconds_subjective"],
                 points_per_question=form.cleaned_data["points_per_question"],
+                is_makeup=form.cleaned_data["is_makeup"],
             )
         except ValueError as e:
             form.add_error(None, str(e))
@@ -108,7 +109,7 @@ def edit(request, course_id, test_id):
     form = TestForm(request.POST or None, instance=t)
     if request.method == "POST" and form.is_valid():
         fields = ("title", "n_objective", "n_tf", "n_subjective", "seconds_objective",
-                  "seconds_tf", "seconds_subjective", "points_per_question")
+                  "seconds_tf", "seconds_subjective", "points_per_question", "is_makeup")
         try:
             services.update_settings(t, actor=request.user,
                                      **{f: form.cleaned_data[f] for f in fields})
@@ -138,7 +139,15 @@ def detail(request, course_id, test_id):
         "attempts": t.attempts.count(),
         "submitted": t.attempts.filter(submitted_at__isnull=False).count(),
         "attempts_list": t.attempts.select_related("student").order_by("started_at"),
+        "allowed_ids": list(t.allowed_students.values_list("id", flat=True)),
+        "allowed_students": t.allowed_students.all().order_by("full_name"),
     }
+    if t.is_makeup and not locked:
+        from courses.models import Enrollment
+        context["enrolled_students"] = (
+            Enrollment.objects.filter(course=course, role_in_course="student", is_active=True)
+            .select_related("user").order_by("user__full_name")
+        )
     return render(request, "assessments/detail.html", context)
 
 
@@ -201,8 +210,10 @@ def archive(request, course_id, test_id):
 @login_required
 @require_POST
 def restore(request, course_id, test_id):
-    course, t, allowed = _staff_test(request, course_id, test_id)
-    if not allowed:
+    course = _course_or_404(course_id)
+    # no is_active filter here: the test being restored is the inactive one
+    t = get_object_or_404(Test, pk=test_id, course_id=course_id)
+    if not is_staff_of(request.user, course):
         return redirect("courses:detail", course_id=course.id)
     services.restore_test(t, actor=request.user)
     messages.success(request, "Test restored.")
@@ -289,11 +300,12 @@ def join(request, code):
     state, attempt = services.join_state(t, student=request.user)
     if attempt and state != "released":
         services.finalize(attempt)
+    no_access = t.is_makeup and not t.allowed_students.filter(pk=request.user.pk).exists()
     score = attempt.score() if (attempt and t.results_released_at) else None
     review = _review_rows(attempt) if (attempt and t.results_released_at) else None
     return render(request, "assessments/join.html", {
         "test": t, "state": state, "attempt": attempt, "score": score, "review": review,
-        "now": timezone.now(),
+        "no_access": no_access, "now": timezone.now(),
     })
 
 
@@ -420,6 +432,23 @@ def attempts_fragment(request, course_id, test_id):
         "submitted": t.attempts.filter(submitted_at__isnull=False).count(),
         "attempts_list": t.attempts.select_related("student").order_by("started_at"),
     })
+
+
+@login_required
+@require_POST
+def set_students(request, course_id, test_id):
+    """Save the allowed-students list of a makeup test."""
+    course, t, allowed = _staff_test(request, course_id, test_id)
+    if not allowed:
+        return redirect("courses:detail", course_id=course.id)
+    ids = [v for v in request.POST.getlist("students") if str(v).isdigit()]
+    try:
+        services.set_makeup_students(t, actor=request.user, user_ids=ids)
+    except ValueError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, "Makeup list saved.")
+    return redirect("assessments:detail", course_id=course.id, test_id=t.id)
 
 
 @login_required

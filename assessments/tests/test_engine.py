@@ -9,8 +9,8 @@ from ..models import Answer, Attempt, Question
 from ..services import (add_question, advance_section, archive_test, clone_test,
                         close_test, create_test, delete_question, finalize,
                         join_state, regenerate_join_code, release_results,
-                        reopen_test, restore_test, save_answer, start_attempt,
-                        start_test, submit, update_settings)
+                        reopen_test, restore_test, save_answer, set_makeup_students,
+                        start_attempt, start_test, submit, update_settings)
 from .helpers import (add_mcq, add_short, add_tf, enroll, make_student_enrolled,
                       make_test, open_test)
 
@@ -384,6 +384,39 @@ class ArchiveTests(TestCase):
         t.refresh_from_db()
         self.assertTrue(t.is_active)
         self.assertTrue(AuditLog.objects.filter(action="test.restore").exists())
+
+
+class MakeupTests(TestCase):
+    def setUp(self):
+        self.t = make_test(n_obj=1, is_makeup=True)
+        add_mcq(self.t)
+        self.on_list = make_student_enrolled()
+        self.off_list = make_student_enrolled(reg="MOUAU/PSB/26/070002")
+        enroll(self.t.course, self.on_list)
+        enroll(self.t.course, self.off_list)
+        set_makeup_students(self.t, actor=self.t.created_by, user_ids=[self.on_list.id])
+
+    def test_only_listed_students_can_start(self):
+        open_test(self.t)
+        a = start_attempt(self.t, student=self.on_list)
+        self.assertIsNotNone(a.id)
+        with self.assertRaises(ValueError):
+            start_attempt(self.t, student=self.off_list)
+
+    def test_list_locked_at_start_and_course_members_only(self):
+        outsider = make_student_enrolled(reg="MOUAU/PSB/26/070003")
+        with self.assertRaises(ValueError):
+            set_makeup_students(self.t, actor=None, user_ids=[outsider.id])  # not enrolled
+        start_test(self.t, actor=self.t.created_by)
+        with self.assertRaises(ValueError):
+            set_makeup_students(self.t, actor=None, user_ids=[self.off_list.id])
+
+    def test_clone_carries_makeup_flag_and_list(self):
+        c = clone_test(self.t, actor=self.t.created_by)
+        self.assertTrue(c.is_makeup)
+        self.assertEqual(
+            list(c.allowed_students.values_list("id", flat=True)), [self.on_list.id]
+        )
 
 
 class CloneTests(TestCase):

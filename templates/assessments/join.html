@@ -3,6 +3,13 @@
 {% block title %}{{ test.title }}{% endblock %}
 {% block content %}
 <p><a href="{% url 'courses:detail' test.course_id %}" class="muted small">&#8592; {{ test.course.code }}</a></p>
+{% if no_access %}
+<div class="card center-card">
+  <h1>{{ test.title }}</h1>
+  <p class="muted">{{ test.course.code }}</p>
+  <p>This is a makeup test. You are not on the list for it.</p>
+</div>
+{% else %}
 <div class="card center-card">
   <h1>{{ test.title }}</h1>
   <p class="muted">{{ test.course.code }}</p>
@@ -58,5 +65,6 @@
     }, 5000);
   })();
 </script>
+{% endif %}
 {% endif %}
 {% endblock %}

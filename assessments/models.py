@@ -43,6 +43,11 @@ class Test(models.Model):
     seconds_tf = models.PositiveIntegerField(default=SECONDS_TF)
     seconds_subjective = models.PositiveIntegerField(default=SECONDS_SUBJECTIVE)
     allow_review = models.BooleanField(default=False)
+    # a makeup test runs for a named list of students only
+    is_makeup = models.BooleanField(default=False)
+    allowed_students = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="makeup_tests"
+    )
     # the lecturer opens and closes the test by hand; no scheduled times
     started_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)

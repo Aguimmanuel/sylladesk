@@ -21,6 +21,7 @@ urlpatterns = [
     path("courses/<int:course_id>/tests/<int:test_id>/attempts/", views.attempts_fragment, name="attempts_fragment"),
     path("courses/<int:course_id>/tests/<int:test_id>/attempts/<int:attempt_id>/",
          views.attempt_detail, name="attempt"),
+    path("courses/<int:course_id>/tests/<int:test_id>/students/", views.set_students, name="set_students"),
     path("courses/<int:course_id>/tests/<int:test_id>/release/", views.release, name="release"),
     path("tests/join/", views.join_box, name="join_box"),
     path("tests/join/<str:code>/status/", views.status, name="status"),

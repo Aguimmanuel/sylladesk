@@ -319,6 +319,39 @@ class ArchiveViewTests(TestCase):
         self.client.force_login(t.created_by)
         r = self.client.get(reverse("courses:detail", args=[t.course_id]))
         self.assertContains(r, "Removed tests")
-        self.client.post(reverse("assessments:restore", args=[t.course_id, t.id]))
+        r = self.client.post(reverse("assessments:restore", args=[t.course_id, t.id]))
+        self.assertEqual(r.status_code, 302)  # regression: this used to 404
         r = self.client.get(reverse("courses:detail", args=[t.course_id]))
-        self.assertContains(r, t.title)  # back, exactly as it was
+        self.assertNotContains(r, "Removed tests")  # nothing left in the bin
+        self.assertContains(r, t.title)  # back in the live table
+
+
+class MakeupViewTests(TestCase):
+    def test_set_list_via_view_and_students_blocked_or_allowed(self):
+        t = make_test(n_obj=1, is_makeup=True)
+        add_mcq(t)
+        on_list = make_student_enrolled()
+        off_list = make_student_enrolled(reg="MOUAU/PSB/26/070002")
+        enroll(t.course, on_list)
+        enroll(t.course, off_list)
+        self.client.force_login(t.created_by)
+        r = self.client.post(reverse("assessments:set_students", args=[t.course_id, t.id]),
+                             {"students": [str(on_list.id)]}, follow=True)
+        self.assertContains(r, "Makeup list saved")
+        self.assertContains(r, on_list.full_name)  # the picker shows the saved list
+        open_test(t)  # list saved while drafting, then the test goes live
+        self.client.force_login(off_list)
+        r = self.client.get(reverse("assessments:join", args=[t.join_code]))
+        self.assertContains(r, "not on the list")
+        r = self.client.get(reverse("assessments:take", args=[t.join_code]), follow=True)
+        self.assertContains(r, "not on the list")  # refused at start too
+        self.client.force_login(on_list)
+        r = self.client.get(reverse("assessments:join", args=[t.join_code]))
+        self.assertContains(r, "Start the test")
+
+    def test_makeup_test_tagged_on_course_page(self):
+        t = make_test(n_obj=1, is_makeup=True)
+        add_mcq(t)
+        self.client.force_login(t.created_by)
+        r = self.client.get(reverse("courses:detail", args=[t.course_id]))
+        self.assertContains(r, "Makeup")

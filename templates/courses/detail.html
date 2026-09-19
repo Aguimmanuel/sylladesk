@@ -76,7 +76,7 @@
     <tbody>
     {% for test in tests %}
       <tr>
-        <td>{{ test.title }}</td>
+        <td>{{ test.title }}{% if test.is_makeup %} <span class="pill">Makeup</span>{% endif %}</td>
         <td class="muted small">{% if is_staff %}
           {% if test.status == "released" %}Released{% elif test.status == "closed" %}Closed{% elif test.status == "live" %}Live{% else %}Draft{% endif %}
         {% else %}

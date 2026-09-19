@@ -33,7 +33,7 @@ def _check_seconds(seconds_by_key):
 
 def create_test(course, *, actor, title, n_objective=0, n_tf=0, n_subjective=0,
                 seconds_objective=20, seconds_tf=20, seconds_subjective=60,
-                points_per_question=1, allow_review=False):
+                points_per_question=1, is_makeup=False):
     _check_draw({"objective": n_objective, "tf": n_tf, "subjective": n_subjective})
     _check_seconds({"objective": seconds_objective, "tf": seconds_tf,
                     "subjective": seconds_subjective})
@@ -42,7 +42,7 @@ def create_test(course, *, actor, title, n_objective=0, n_tf=0, n_subjective=0,
         n_objective=n_objective, n_tf=n_tf, n_subjective=n_subjective,
         seconds_objective=seconds_objective, seconds_tf=seconds_tf,
         seconds_subjective=seconds_subjective,
-        points_per_question=points_per_question, allow_review=allow_review,
+        points_per_question=points_per_question, is_makeup=is_makeup,
         created_by=actor,
     )
     t.save()
@@ -62,6 +62,28 @@ def update_settings(t, *, actor, **fields):
         setattr(t, f, value)
     t.save()
     audit(actor=actor, action="test.update", obj=t)
+    return t
+
+
+def set_makeup_students(t, *, actor, user_ids):
+    """Who may take a makeup test. Only enrolled students of the course,
+    locked once the test starts."""
+    from courses.models import Enrollment
+    if not t.is_makeup:
+        raise ValueError("This test is not a makeup test.")
+    if t.started_at:
+        raise ValueError("Students are locked once the test has started.")
+    wanted = {int(i) for i in user_ids}
+    enrolled = set(
+        Enrollment.objects.filter(
+            course=t.course, role_in_course="student", is_active=True
+        ).values_list("user_id", flat=True)
+    )
+    if wanted - enrolled:
+        raise ValueError("Only students enrolled in this course can be on a makeup list.")
+    t.allowed_students.set(wanted)
+    audit(actor=actor, action="test.makeup_students", obj=t,
+          detail={"count": len(wanted)})
     return t
 
 
@@ -220,6 +242,8 @@ def start_attempt(t, *, student):
         raise ValueError("This test is not open right now.")
     if student_role(student, t) != "student":
         raise ValueError("Only enrolled students can take this test.")
+    if t.is_makeup and not t.allowed_students.filter(pk=student.pk).exists():
+        raise ValueError("You are not on the list for this makeup test.")
     drawn = []
     first = None
     expiries = {}
@@ -330,7 +354,7 @@ def clone_test(t, *, actor):
         n_objective=t.n_objective, n_tf=t.n_tf, n_subjective=t.n_subjective,
         seconds_objective=t.seconds_objective, seconds_tf=t.seconds_tf,
         seconds_subjective=t.seconds_subjective,
-        points_per_question=t.points_per_question, allow_review=t.allow_review,
+        points_per_question=t.points_per_question, is_makeup=t.is_makeup,
         created_by=actor,
     )
     for _ in range(20):
@@ -339,6 +363,8 @@ def clone_test(t, *, actor):
             c.join_code = candidate
             break
     c.save()
+    if t.is_makeup:
+        c.allowed_students.set(t.allowed_students.all())
     for q in t.questions.all():
         Question.objects.create(
             test=c, kind=q.kind, text=q.text, options=q.options,
