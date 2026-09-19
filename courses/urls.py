@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.list_courses, name="list"),
     path("new/", views.create_course, name="create"),
     path("<int:course_id>/", views.detail, name="detail"),
+    path("<int:course_id>/gradebook/", views.gradebook, name="gradebook"),
     path("<int:course_id>/archive/", views.archive, name="archive"),
     path("<int:course_id>/trash/", views.trash, name="trash"),
     path("<int:course_id>/trash/<str:kind>/<int:item_id>/restore/", views.trash_restore, name="trash_restore"),

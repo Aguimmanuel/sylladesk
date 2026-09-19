@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load lms_extras %}
+{% block title %}{% if staff %}Gradebook{% else %}My results{% endif %} · {{ course.code }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'courses:detail' course.id %}" class="muted small">&#8592; {{ course.code }}</a></p>
+<div class="page-head">
+  <div><h1>{% if staff %}Gradebook{% else %}My results{% endif %}</h1>
+  <p class="muted small">{% if staff %}Tests count when you release them; assignments count once you mark them.
+    A dash means the student did not participate — never a zero.{% else %}Your scores for {{ course.code }}.
+    Test scores appear here when your lecturer releases them.{% endif %}</p></div>
+</div>
+
+{% if staff %}
+  {% if not rows %}
+  <div class="card"><p class="muted">No enrolled students yet — upload the roster first.</p></div>
+  {% elif not tests and not assignments %}
+  <div class="card"><p class="muted">Nothing to show yet. Every test you release and every assignment you mark appears here as a column.</p></div>
+  {% else %}
+  <div class="card" style="overflow-x:auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Student</th>
+          {% for t in tests %}<th><a href="{% url 'assessments:detail' course.id t.id %}">{{ t.title }}</a>
+            {% if t.is_makeup %}<span class="pill">Makeup</span>{% endif %}
+            <div class="muted small">max {{ t.max_score }}</div></th>{% endfor %}
+          {% for a in assignments %}<th><a href="{% url 'assignments:detail' course.id a.id %}">{{ a.title }}</a>
+            <div class="muted small">max {{ a.max_score }}</div></th>{% endfor %}
+          <th>Total<div class="muted small">marked items only</div></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.user.full_name }}<div class="muted small">{{ r.user.username }}</div></td>
+          {% for c in r.cells %}
+          <td>
+            {% if c.score is not None %}<strong>{{ c.score }}</strong>
+            {% elif c.kind == "asg" and c.submitted %}<span class="muted">Not marked</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          {% endfor %}
+          <td><strong>{{ r.earned }}</strong> / {{ r.max }}
+            <div class="muted small">{{ r.shown }} of {{ r.items }} items</div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+{% else %}
+  {% if not cells %}
+  <div class="card"><p class="muted">Nothing here yet. When your lecturer releases test scores or marks
+    your assignments, they appear on this page.</p></div>
+  {% else %}
+  <div class="card">
+    <table class="table">
+      <thead><tr><th>Item</th><th>Score</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for c in cells %}
+        <tr>
+          <td>{{ c.obj.title }}{% if c.kind == "test" and c.obj.is_makeup %} <span class="pill">Makeup</span>{% endif %}</td>
+          <td>{% if c.score is not None %}<strong>{{ c.score }}</strong> / {{ c.obj.max_score }}
+              {% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if c.note %}{{ c.note }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p><strong>Total: {{ earned }} / {{ max }}</strong>
+      <span class="muted small">counting {{ shown }} of {{ items }} items</span></p>
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

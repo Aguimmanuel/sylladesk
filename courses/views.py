@@ -129,6 +129,112 @@ def detail(request, course_id):
     })
 
 
+def _gradebook_data(course):
+    """Columns and rows for the gradebook: active tests (oldest first),
+    active assignments (by due date), enrolled students."""
+    from assessments.models import Attempt
+    from assignments.models import Submission
+    tests = list(course.tests.filter(is_active=True).order_by("created_at", "id"))
+    assignments = list(course.assignments.filter(is_active=True).order_by("due_at", "id"))
+    students = (
+        course.enrollments.filter(role_in_course="student", is_active=True)
+        .select_related("user").order_by("user__full_name")
+    )
+    return tests, assignments, students
+
+
+@login_required
+def gradebook(request, course_id):
+    """One table, computed at read: tests by released attempt scores,
+    assignments by graded submission scores. No totals are stored anywhere."""
+    course = _course_or_404(course_id)
+    if user_role_in_course(request.user, course) is None:
+        messages.error(request, "Not allowed.")
+        return redirect("courses:list")
+    tests, assignments, students = _gradebook_data(course)
+    staff = is_staff_of(request.user, course)
+
+    if staff:
+        from assessments.models import Attempt
+        from assignments.models import Submission
+        attempts = {
+            (a.student_id, a.test_id): a
+            for a in Attempt.objects.filter(test__in=tests).prefetch_related("answers")
+        }
+        graded, handed_in = {}, set()
+        for s in Submission.objects.filter(assignment__in=assignments).order_by("graded_at"):
+            handed_in.add((s.student_id, s.assignment_id))
+            if s.score is not None:
+                graded[(s.student_id, s.assignment_id)] = s  # latest grade wins
+        rows = []
+        for e in students:
+            cells, earned, shown, max_total = [], 0, 0, 0
+            for t in tests:
+                a = attempts.get((e.user_id, t.id))
+                pts = a.score() if a else None
+                if pts is not None:
+                    earned += pts
+                    shown += 1
+                max_total += t.max_score
+                cells.append({"kind": "test", "obj": t, "score": pts})
+            for asg in assignments:
+                s = graded.get((e.user_id, asg.id))
+                pts = s.score if s else None
+                if pts is not None:
+                    earned += pts
+                    shown += 1
+                max_total += asg.max_score
+                cells.append({"kind": "asg", "obj": asg, "score": pts,
+                              "submitted": (e.user_id, asg.id) in handed_in})
+            rows.append({"user": e.user, "cells": cells, "earned": earned,
+                         "max": max_total, "shown": shown,
+                         "items": len(tests) + len(assignments)})
+        return render(request, "courses/gradebook.html", {
+            "course": course, "staff": staff, "rows": rows,
+            "tests": tests, "assignments": assignments,
+        })
+
+    # student: own row only, and only released test columns exist at all
+    from assessments.models import Attempt
+    from assignments.models import Submission
+    visible_tests = [t for t in tests if t.results_released_at]
+    my_attempts = {
+        a.test_id: a for a in
+        Attempt.objects.filter(test__in=visible_tests, student=request.user)
+        .prefetch_related("answers")
+    }
+    my_subs = {}
+    for s in Submission.objects.filter(assignment__in=assignments, student=request.user) \
+            .order_by("graded_at"):
+        if s.score is not None:
+            my_subs[s.assignment_id] = s  # latest grade wins
+    cells, earned, shown, max_total, items = [], 0, 0, 0, 0
+    for t in visible_tests:
+        items += 1
+        max_total += t.max_score
+        a = my_attempts.get(t.id)
+        pts = a.score() if a else None
+        if pts is not None:
+            earned += pts
+            shown += 1
+        cells.append({"kind": "test", "obj": t, "score": pts})
+    for asg in assignments:
+        items += 1
+        max_total += asg.max_score
+        s = my_subs.get(asg.id)
+        if s is not None:
+            earned += s.score
+            shown += 1
+        cells.append({"kind": "asg", "obj": asg,
+                      "score": s.score if s else None,
+                      "note": s.score_note if s else ""})
+    return render(request, "courses/gradebook.html", {
+        "course": course, "staff": staff, "cells": cells,
+        "tests": visible_tests, "assignments": assignments,
+        "earned": earned, "max": max_total, "shown": shown, "items": items,
+    })
+
+
 @login_required
 def trash(request, course_id):
     course = _course_or_404(course_id)

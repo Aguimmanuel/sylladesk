@@ -65,9 +65,12 @@
 {% if tests or is_staff %}
 <div class="page-head">
   <h2>Tests</h2>
-  {% if is_staff %}
-  <a href="{% url 'assessments:create' course.id %}" class="btn btn-primary">+ New test</a>
-  {% endif %}
+  <span class="row-actions">
+    <a href="{% url 'courses:gradebook' course.id %}" class="btn">{% if is_staff %}Gradebook{% else %}My results{% endif %}</a>
+    {% if is_staff %}
+    <a href="{% url 'assessments:create' course.id %}" class="btn btn-primary">+ New test</a>
+    {% endif %}
+  </span>
 </div>
 {% if tests %}
 <div class="card">
