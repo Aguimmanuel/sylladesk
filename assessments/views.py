@@ -8,9 +8,9 @@ from django.views.decorators.http import require_POST
 from courses.access import is_staff_of, user_role_in_course
 from courses.views import _course_or_404
 
-from .forms import JoinForm, QuestionForm, TestForm
+from .forms import QuestionForm, TestForm
 from .grading import grade_objective, grade_subjective
-from .models import Attempt, Question, Test, TestUnlock
+from .models import Attempt, Question, Test
 from . import services
 
 
@@ -88,7 +88,7 @@ def create(request, course_id):
         except ValueError as e:
             form.add_error(None, str(e))
         else:
-            messages.success(request, f"Test created. Join code: {t.join_code}")
+            messages.success(request, "Test created.")
             return redirect("assessments:detail", course_id=course.id, test_id=t.id)
     return render(request, "assessments/create.html", {
         "course": course, "form": form, "editing": False,
@@ -256,17 +256,6 @@ def delete_question(request, course_id, test_id, question_id):
 
 @login_required
 @require_POST
-def regenerate(request, course_id, test_id):
-    course, t, allowed = _staff_test(request, course_id, test_id)
-    if not allowed:
-        return redirect("courses:detail", course_id=course.id)
-    services.regenerate_join_code(t, actor=request.user)
-    messages.success(request, f"New join code: {t.join_code}. The old code no longer works.")
-    return redirect("assessments:detail", course_id=course.id, test_id=t.id)
-
-
-@login_required
-@require_POST
 def release(request, course_id, test_id):
     course, t, allowed = _staff_test(request, course_id, test_id)
     if not allowed:
@@ -281,36 +270,6 @@ def release(request, course_id, test_id):
 
 
 @login_required
-def enter(request, course_id, test_id):
-    """The code front door: a student types the join code once per test."""
-    course = _course_or_404(course_id)
-    t = _test_or_404(course_id, test_id)
-    if user_role_in_course(request.user, t.course) is None:
-        messages.error(request, "That test belongs to students enrolled in the course.")
-        return redirect("courses:list")
-    if t.results_released_at:
-        return redirect("assessments:join", code=t.join_code)
-    form = JoinForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        if form.cleaned_data["code"].strip().upper() != t.join_code:
-            form.add_error("code", "That code does not match this test.")
-        else:
-            TestUnlock.objects.get_or_create(test=t, student=request.user)
-            return redirect("assessments:join", code=t.join_code)
-    return render(request, "assessments/enter.html", {"course": course, "test": t, "form": form})
-
-
-@login_required
-@require_POST
-def join_box(request):
-    code = request.POST.get("code", "").strip().upper()
-    if len(code) != 6:
-        messages.error(request, "Join codes are 6 characters.")
-        return redirect("courses:list")
-    return redirect("assessments:join", code=code)
-
-
-@login_required
 def join(request, code):
     t = _test_by_code(code)
     role = user_role_in_course(request.user, t.course)
@@ -320,9 +279,6 @@ def join(request, code):
     state, attempt = services.join_state(t, student=request.user)
     if attempt and state != "released":
         services.finalize(attempt)
-    if state in ("open", "in_progress"):
-        # arrival here means the code was typed: open the door for keeps
-        TestUnlock.objects.get_or_create(test=t, student=request.user)
     no_access = t.is_makeup and not t.allowed_students.filter(pk=request.user.pk).exists()
     score = attempt.score() if (attempt and t.results_released_at) else None
     review = _review_rows(attempt) if (attempt and t.results_released_at) else None
@@ -338,8 +294,6 @@ def take(request, code):
     state, attempt = services.join_state(t, student=request.user)
     if state in ("upcoming", "closed", "released"):
         return redirect("assessments:join", code=code)
-    if not TestUnlock.objects.filter(test=t, student=request.user).exists():
-        return redirect("assessments:enter", course_id=t.course_id, test_id=t.id)
     if not attempt:
         try:
             attempt = services.start_attempt(t, student=request.user)

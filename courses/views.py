@@ -148,20 +148,12 @@ def detail(request, course_id):
     due_soon = None
     if not staff:
         due_soon = _due_soon_for(request.user, tests, assignments)
-    unlocked_ids = []
-    if not staff:
-        from assessments.models import TestUnlock
-        unlocked_ids = set(
-            TestUnlock.objects.filter(student=request.user, test__course=course)
-            .values_list("test_id", flat=True)
-        )
     return render(request, "courses/detail.html", {
         "course": course, "role": role, "materials": materials, "roster": roster,
         "assignments": assignments, "tests": tests,
         "is_staff": staff, "mform": MaterialForm() if staff else None,
         "students": students, "removed_students": removed_students,
         "trash_count": sum(q.count() for q in removed.values()) if removed else 0,
-        "unlocked_ids": unlocked_ids,
         "announcements": announcements,
         "aform": AnnouncementForm() if staff else None,
         "due_soon": due_soon,

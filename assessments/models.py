@@ -201,22 +201,6 @@ class Attempt(models.Model):
         return points
 
 
-class TestUnlock(models.Model):
-    """One typed join code per student per test. Typing the code is the
-    front door: without an unlock row a live test will not open."""
-
-    test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name="unlocks")
-    student = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="test_unlocks"
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["test", "student"], name="uniq_test_unlock")
-        ]
-
-
 class Answer(models.Model):
     attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name="answers")
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="+")

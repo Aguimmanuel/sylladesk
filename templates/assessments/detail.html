@@ -53,21 +53,6 @@
 </div>
 {% endif %}
 
-<div class="card">
-  <h2>Join code</h2>
-  <p style="font-size:1.6rem;letter-spacing:.3em"><strong>{{ test.join_code }}</strong></p>
-  <p class="muted small">Share it with the class. Students type it under "Join a test" on their courses page.</p>
-  {% if test.status != "released" %}
-  <form method="post" action="{% url 'assessments:regenerate' course.id test.id %}" class="inline-form">
-    {% csrf_token %}<button type="submit" class="btn">Regenerate code</button>
-  </form>
-  {% endif %}
-  <form method="post" action="{% url 'assessments:clone' course.id test.id %}" class="inline-form"
-        onsubmit="return confirm('Make a copy of this test? The copy is a fresh draft with the same questions and settings.')">
-    {% csrf_token %}<button type="submit" class="btn">Clone test</button>
-  </form>
-</div>
-
 {% if locked %}
 <div class="card"><p class="muted">Questions are locked while the test runs.</p></div>
 {% else %}
@@ -144,8 +129,12 @@
 
 <h2>Manage</h2>
 <div class="card">
-  <p class="muted small">Removing hides this test from everyone, including join by code.
-    You can bring it back from the course page anytime.</p>
+  <p class="muted small">Removing hides this test from everyone. You can bring it back
+    from the course Trash anytime.</p>
+  <form method="post" action="{% url 'assessments:clone' course.id test.id %}" class="inline-form"
+        onsubmit="return confirm('Make a copy of this test? The copy is a fresh draft with the same questions and settings.')">
+    {% csrf_token %}<button type="submit" class="btn">Clone test</button>
+  </form>
   <form method="post" action="{% url 'assessments:archive' course.id test.id %}" class="inline-form"
         onsubmit="return confirm('Remove this test? It disappears for everyone - you can restore it from the course page.')">
     {% csrf_token %}<button type="submit" class="btn btn-ghost">Remove test</button>

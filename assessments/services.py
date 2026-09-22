@@ -149,20 +149,6 @@ def restore_test(t, *, actor):
     return t
 
 
-def regenerate_join_code(t, *, actor):
-    """Leak response: the old code dies instantly; running attempts are
-    unaffected because they are bound to the attempt, not the code."""
-    old = t.join_code
-    for _ in range(20):
-        candidate = make_join_code()
-        if candidate != old and not Test.objects.filter(join_code=candidate).exists():
-            t.join_code = candidate
-            t.save(update_fields=["join_code"])
-            break
-    audit(actor=actor, action="test.regen_code", obj=t, detail={"old": old, "new": t.join_code})
-    return t
-
-
 def add_question(t, *, actor, kind, text, options="", answer_key="", accepted_answers=""):
     if t.started_at:
         raise ValueError("Questions are locked once the test has started.")

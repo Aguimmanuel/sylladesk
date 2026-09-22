@@ -46,7 +46,3 @@ class QuestionForm(forms.Form):
     accepted_answers = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}),
                                        help_text="Short answer only: 1 to 5 accepted answers, one per line.")
 
-
-class JoinForm(forms.Form):
-    code = forms.CharField(max_length=6, min_length=6,
-                           widget=forms.TextInput(attrs={"placeholder": "ABC123", "style": "text-transform: uppercase"}))

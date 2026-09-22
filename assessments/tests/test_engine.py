@@ -8,7 +8,7 @@ from core.models import AuditLog
 from ..models import Answer, Attempt, Question
 from ..services import (add_question, advance_section, archive_test, clone_test,
                         close_test, create_test, delete_question, finalize,
-                        join_state, regenerate_join_code, release_results,
+                        join_state, release_results,
                         reopen_test, restore_test, save_answer, set_makeup_students,
                         start_attempt, start_test, submit, update_settings)
 from .helpers import (add_mcq, add_short, add_tf, enroll, make_student_enrolled,
@@ -443,12 +443,3 @@ class CloneTests(TestCase):
         add_mcq(c, text="Added to the copy", key="C", options="x\ny\nz")
         self.assertEqual(c.questions.count(), 4)
         self.assertEqual(t.questions.count(), 3)
-
-
-class CodeTests(TestCase):
-    def test_regen_changes_code_and_audits(self):
-        t = make_test()
-        old = t.join_code
-        regenerate_join_code(t, actor=t.created_by)
-        self.assertNotEqual(t.join_code, old)
-        self.assertTrue(AuditLog.objects.filter(action="test.regen_code").exists())

@@ -146,11 +146,7 @@
         </td>
         {% else %}
         <td class="row-actions">{% if test.status != "draft" %}
-          {% if test.status == "released" or test.id in unlocked_ids %}
           <a class="btn" href="{% url 'assessments:join' test.join_code %}">View</a>
-          {% else %}
-          <a class="btn" href="{% url 'assessments:enter' course.id test.id %}">View</a>
-          {% endif %}
         {% endif %}</td>
         {% endif %}
       </tr>
@@ -161,17 +157,6 @@
 {% elif is_staff %}
 <div class="card"><p class="muted">No tests yet.</p></div>
 {% endif %}
-{% endif %}
-
-{% if not is_staff and user.global_role == "student" %}
-<div class="card" style="margin-top:1rem">
-  <strong>Join a test</strong>
-  <form method="post" action="{% url 'assessments:join_box' %}" class="row2" style="margin-top:.5rem">
-    {% csrf_token %}
-    <input type="text" name="code" maxlength="6" minlength="6" placeholder="6-letter code" style="text-transform:uppercase" required>
-    <button type="submit" class="btn btn-primary">Join</button>
-  </form>
-</div>
 {% endif %}
 
 {% if assignments or is_staff %}
