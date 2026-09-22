@@ -9,6 +9,7 @@ urlpatterns = [
     path("courses/", include("courses.urls")),
     path("courses/<int:course_id>/", include("materials.urls")),
     path("courses/<int:course_id>/assignments/", include("assignments.urls")),
+    path("courses/<int:course_id>/announcements/", include("announcements.urls")),
     path("", include("assessments.urls")),
     path("healthz", core_views.healthz, name="healthz"),
     path("", core_views.home, name="home"),

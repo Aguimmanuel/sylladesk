@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "materials",
     "assignments",
     "assessments",
+    "announcements",
     # django_tasks lands with assessments
 ]
 

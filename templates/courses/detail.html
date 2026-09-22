@@ -14,6 +14,57 @@
   {% endif %}
 </div>
 
+{% if due_soon %}
+<div class="card" style="border-color:var(--primary)">
+  <strong>Due in the next 7 days</strong>
+  <ul style="margin:.5rem 0 0;padding-left:1.2rem">
+    {% for t in due_soon.tests %}
+    <li style="margin:.25rem 0"><a href="{% url 'assessments:join' t.join_code %}">{{ t.title }}</a>
+      <span class="pill">Live now</span></li>
+    {% endfor %}
+    {% for a in due_soon.assignments %}
+    <li style="margin:.25rem 0"><a href="{% url 'assignments:detail' course.id a.id %}">{{ a.title }}</a>
+      <span class="muted small">due {{ a.due_at|wat }}</span></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<h2>Announcements</h2>
+{% if is_staff %}
+<div class="card">
+  <form method="post" action="{% url 'announcements:create' course.id %}" class="stack">
+    {% csrf_token %}
+    {{ aform.title.label_tag }} {{ aform.title }} {{ aform.title.errors }}
+    {{ aform.body.label_tag }} {{ aform.body }} {{ aform.body.errors }}
+    {{ aform.is_pinned.label_tag }} {{ aform.is_pinned }}
+    <button type="submit" class="btn btn-primary">Post announcement</button>
+  </form>
+</div>
+{% endif %}
+{% if announcements %}
+<div class="card">
+  {% for a in announcements %}
+  <div style="margin-bottom:1rem">
+    <strong>{{ a.title }}</strong>
+    {% if a.is_pinned %}<span class="pill">Pinned</span>{% endif %}
+    <div>{{ a.body|linebreaksbr }}</div>
+    <div class="muted small">{{ a.created_at|wat }}
+      {% if is_staff %}
+      · <a href="{% url 'announcements:edit' course.id a.id %}">Edit</a>
+      <form method="post" action="{% url 'announcements:delete' course.id a.id %}" class="inline-form"
+            onsubmit="return confirm('Remove this announcement? You can restore it from the Trash.')">{% csrf_token %}
+        <button type="submit" class="btn btn-ghost">Remove</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <p class="muted">No announcements yet.</p>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if is_staff %}
 <div class="card">
   <h2>Upload material</h2>

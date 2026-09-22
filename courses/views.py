@@ -18,6 +18,7 @@ User = get_user_model()
 
 def _removed_items(course):
     """Everything sitting in this course's trash, newest first."""
+    from announcements.models import Announcement
     from assessments.models import Test
     from assignments.models import Assignment
     from materials.models import Material
@@ -28,7 +29,36 @@ def _removed_items(course):
         .order_by("-created_at"),
         "assignments": Assignment.objects.filter(course=course, is_active=False)
         .order_by("-id"),
+        "announcements": Announcement.objects.filter(course=course, is_active=False)
+        .order_by("-created_at"),
     }
+
+
+def _due_soon_for(user, tests, assignments):
+    """The student's next-7-days block: live tests not yet finished plus
+    assignments due within a week and not yet submitted."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from assessments.models import Attempt
+    from assignments.models import Submission
+
+    now = timezone.now()
+    horizon = now + timedelta(days=7)
+    test_items = [
+        t for t in tests
+        if t.status == "live"
+        and not Attempt.objects.filter(
+            test=t, student=user, submitted_at__isnull=False
+        ).exists()
+    ]
+    asg_items = [
+        a for a in assignments
+        if now <= a.due_at <= horizon
+        and not Submission.objects.filter(assignment=a, student=user).exists()
+    ]
+    return {"tests": test_items, "assignments": asg_items} if (test_items or asg_items) else None
 
 
 @login_required
@@ -112,6 +142,12 @@ def detail(request, course_id):
         removed_students = (Enrollment.objects.filter(course=course, role_in_course="student", is_active=False)
                             .select_related("user").order_by("user__full_name"))
     removed = _removed_items(course) if staff else None
+    from announcements.forms import AnnouncementForm
+    from announcements.models import Announcement
+    announcements = Announcement.objects.filter(course=course, is_active=True)
+    due_soon = None
+    if not staff:
+        due_soon = _due_soon_for(request.user, tests, assignments)
     unlocked_ids = []
     if not staff:
         from assessments.models import TestUnlock
@@ -126,6 +162,9 @@ def detail(request, course_id):
         "students": students, "removed_students": removed_students,
         "trash_count": sum(q.count() for q in removed.values()) if removed else 0,
         "unlocked_ids": unlocked_ids,
+        "announcements": announcements,
+        "aform": AnnouncementForm() if staff else None,
+        "due_soon": due_soon,
     })
 
 
@@ -250,7 +289,8 @@ def _trash_item(course, kind):
     live filters - a trashed test is inactive, a trashed material deleted."""
     items = _removed_items(course)
     qs = {"material": items["materials"], "test": items["tests"],
-          "assignment": items["assignments"]}.get(kind)
+          "assignment": items["assignments"],
+          "announcement": items["announcements"]}.get(kind)
     if qs is None:
         raise Http404()
     return qs
